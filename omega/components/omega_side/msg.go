@@ -1,8 +1,8 @@
 package omega_side
 
 import (
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"phoenixbuilder/minecraft/protocol"
 	"phoenixbuilder/minecraft/protocol/packet"
 	"phoenixbuilder/mirror/chunk"

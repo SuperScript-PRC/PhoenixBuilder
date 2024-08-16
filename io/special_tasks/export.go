@@ -1,6 +1,3 @@
-//go:build !is_tweak
-// +build !is_tweak
-
 package special_tasks
 
 import (
@@ -10,6 +7,7 @@ import (
 	"phoenixbuilder/fastbuilder/configuration"
 	"phoenixbuilder/fastbuilder/environment"
 	"phoenixbuilder/fastbuilder/parsing"
+	fbauth "phoenixbuilder/fastbuilder/pv4"
 	"phoenixbuilder/fastbuilder/task"
 	"phoenixbuilder/fastbuilder/task/fetcher"
 	"phoenixbuilder/fastbuilder/types"
@@ -25,18 +23,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/pterm/pterm"
 )
 
 func CreateExportTask(commandLine string, env *environment.PBEnvironment) *task.Task {
-	cmdsender := env.CommandSender
 	cfg, err := parsing.Parse(commandLine, configuration.GlobalFullConfig(env).Main())
 	if err != nil {
-		cmdsender.Output(fmt.Sprintf("Failed to parse command: %v", err))
+		env.GameInterface.Output(fmt.Sprintf("Failed to parse command: %v", err))
 		return nil
 	}
-	//cmdsender.Output("Sorry, but compatibility works haven't been done yet, please use lexport.")
+	//env.GameInterface.Output("Sorry, but compatibility works haven't been done yet, please use lexport.")
 	//return nil
 	beginPos := cfg.Position
 	endPos := cfg.End
@@ -69,11 +65,9 @@ func CreateExportTask(commandLine string, env *environment.PBEnvironment) *task.
 	fmt.Println("Hop Left: ", len(hopPath))
 	teleportFn := func(x, z int) {
 		cmd := fmt.Sprintf("tp @s %v 128 %v", x, z)
-		uid, _ := uuid.NewUUID()
-		cmdsender.SendCommand(cmd, uid)
+		env.GameInterface.SendCommand(cmd)
 		cmd = fmt.Sprintf("execute @s ~~~ spreadplayers ~ ~ 3 4 @s")
-		uid, _ = uuid.NewUUID()
-		cmdsender.SendCommand(cmd, uid)
+		env.GameInterface.SendCommand(cmd)
 	}
 	feedChan := make(chan *fetcher.ChunkDefineWithPos, 1024)
 	deRegFn := env.ChunkFeeder.(*global.ChunkFeeder).RegNewReader(func(chunk *mirror.ChunkData) {
@@ -87,13 +81,12 @@ func CreateExportTask(commandLine string, env *environment.PBEnvironment) *task.
 			if !inHopping {
 				break
 			}
-			uuidval, _ := uuid.NewUUID()
 			yv := (yc-4)*16 + 8
 			yc--
 			if yc < 0 {
 				yc = 23
 			}
-			cmdsender.SendCommand(fmt.Sprintf("tp @s ~ %d ~", yv), uuidval)
+			env.GameInterface.SendCommand(fmt.Sprintf("tp @s ~ %d ~", yv))
 			time.Sleep(time.Millisecond * 50)
 		}
 	}()
@@ -132,7 +125,7 @@ func CreateExportTask(commandLine string, env *environment.PBEnvironment) *task.
 				fmt.Println("go routine @ fastbuilder.task export crashed ", r)
 			}
 		}()
-		cmdsender.Output("EXPORT >> Exporting...")
+		env.GameInterface.Output("EXPORT >> Exporting...")
 		V := (endPos.X - beginPos.X + 1) * (endPos.Y - beginPos.Y + 1) * (endPos.Z - beginPos.Z + 1)
 		blocks := make([]*types.Module, V)
 		counter := 0
@@ -350,7 +343,7 @@ func CreateExportTask(commandLine string, env *environment.PBEnvironment) *task.
 						},
 						CommandBlockData: cbdata,
 						ChestData:        chestData,
-						NBTData:          nbtData,
+						DebugNBTData:     nbtData,
 						Point: types.Position{
 							X: x,
 							Y: y,
@@ -369,17 +362,17 @@ func CreateExportTask(commandLine string, env *environment.PBEnvironment) *task.
 		if strings.LastIndex(cfg.Path, ".bdx") != len(cfg.Path)-4 || len(cfg.Path) < 4 {
 			cfg.Path += ".bdx"
 		}
-		cmdsender.Output("EXPORT >> Writing output file")
-		err, signerr := out.WriteToFile(cfg.Path, env.LocalCert, env.LocalKey)
+		env.GameInterface.Output("EXPORT >> Writing output file")
+		err, signerr := out.WriteToFile(cfg.Path, env.FBAuthClient.(*fbauth.Client).LocalCert, env.FBAuthClient.(*fbauth.Client).LocalKey)
 		if err != nil {
-			cmdsender.Output(fmt.Sprintf("EXPORT >> ERROR: Failed to export: %v", err))
+			env.GameInterface.Output(fmt.Sprintf("EXPORT >> ERROR: Failed to export: %v", err))
 			return
 		} else if signerr != nil {
-			cmdsender.Output(fmt.Sprintf("EXPORT >> Note: The file is unsigned since the following error was trapped: %v", signerr))
+			env.GameInterface.Output(fmt.Sprintf("EXPORT >> Note: The file is unsigned since the following error was trapped: %v", signerr))
 		} else {
-			cmdsender.Output(fmt.Sprintf("EXPORT >> File signed successfully"))
+			env.GameInterface.Output(fmt.Sprintf("EXPORT >> File signed successfully"))
 		}
-		cmdsender.Output(fmt.Sprintf("EXPORT >> Successfully exported your structure to %v", cfg.Path))
+		env.GameInterface.Output(fmt.Sprintf("EXPORT >> Successfully exported your structure to %v", cfg.Path))
 		runtime.GC()
 	}()
 	return nil

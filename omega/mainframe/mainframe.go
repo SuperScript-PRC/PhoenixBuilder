@@ -12,6 +12,7 @@ import (
 	"phoenixbuilder/omega/utils"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pterm/pterm"
@@ -29,7 +30,7 @@ type Omega struct {
 	storageRoot string
 
 	uqHolder *uqHolder.UQHolder
-	ctx      map[string]interface{}
+	ctx      sync.Map
 
 	backendLogger    defines.LineDst
 	redAlertLogger   defines.LineDst
@@ -66,7 +67,6 @@ func NewOmega() *Omega {
 		scheduler:    NewOmegaBotTaskScheduler(),
 	}
 	o.Reactor = newReactor(o)
-	o.ctx = map[string]interface{}{}
 	return o
 }
 
@@ -75,11 +75,12 @@ func (o *Omega) QuerySensitiveInfo(key defines.SensitiveInfoType) (string, error
 }
 
 func (o *Omega) GetGlobalContext(key string) (entry interface{}) {
-	return o.ctx[key]
+	value, _ := o.ctx.Load(key)
+	return value
 }
 
 func (o *Omega) SetGlobalContext(key string, entry interface{}) {
-	o.ctx[key] = entry
+	o.ctx.Store(key, entry)
 }
 
 func (o *Omega) GetUQHolder() *uqHolder.UQHolder {

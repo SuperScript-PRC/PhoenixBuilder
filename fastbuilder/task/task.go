@@ -2,8 +2,8 @@ package task
 
 import (
 	"fmt"
-	"runtime/debug"
-	"phoenixbuilder/bridge/bridge_fmt"
+	"phoenixbuilder/fastbuilder/args"
+	NBTAssigner "phoenixbuilder/fastbuilder/bdump/nbt_assigner"
 	"phoenixbuilder/fastbuilder/builder"
 	"phoenixbuilder/fastbuilder/commands_generator"
 	"phoenixbuilder/fastbuilder/configuration"
@@ -11,14 +11,13 @@ import (
 	I18n "phoenixbuilder/fastbuilder/i18n"
 	"phoenixbuilder/fastbuilder/parsing"
 	"phoenixbuilder/fastbuilder/types"
-	"phoenixbuilder/io/commands"
-	"phoenixbuilder/minecraft/protocol"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/pterm/pterm"
 	"go.uber.org/atomic"
 )
 
@@ -106,7 +105,7 @@ func (task *Task) Resume() {
 	if task.Type == types.TaskTypeAsync {
 		task.AsyncInfo.Total -= task.AsyncInfo.Built
 		task.AsyncInfo.Built = 0
-		task.AsyncInfo.BeginTime=time.Now()
+		task.AsyncInfo.BeginTime = time.Now()
 	}
 	task.State = TaskStateRunning
 	task.ContinueLock.Unlock()
@@ -153,16 +152,16 @@ func (holder *TaskHolder) FindTask(taskId int64) *Task {
 
 func CreateTask(commandLine string, env *environment.PBEnvironment) *Task {
 	holder := env.TaskHolder.(*TaskHolder)
-	cmdsender := env.CommandSender.(*commands.CommandSender)
+	gameInterface := env.GameInterface
 	cfg, err := parsing.Parse(commandLine, configuration.GlobalFullConfig(env).Main())
 	if err != nil {
-		cmdsender.Output(fmt.Sprintf(I18n.T(I18n.TaskFailedToParseCommand), err))
+		gameInterface.Output(fmt.Sprintf(I18n.T(I18n.TaskFailedToParseCommand), err))
 		return nil
 	}
 	fcfg := configuration.ConcatFullConfig(cfg, configuration.GlobalFullConfig(env).Delay())
 	dcfg := fcfg.Delay()
-	und, _ := uuid.NewUUID()
-	cmdsender.SendWSCommand("gamemode c", und)
+
+	gameInterface.SendWSCommand("gamemode c")
 	blockschannel := make(chan *types.Module, 10240)
 	task := &Task{
 		TaskId:        holder.TaskIdCounter.Add(1),
@@ -205,19 +204,19 @@ func CreateTask(commandLine string, env *environment.PBEnvironment) *Task {
 				if skipBlocks > task.AsyncInfo.Total {
 					skipBlocks = task.AsyncInfo.Total
 				}
-				bridge_fmt.Printf(I18n.T(I18n.Task_ResumeBuildFrom)+"\n", skipBlocks)
+				fmt.Printf(I18n.T(I18n.Task_ResumeBuildFrom)+"\n", skipBlocks)
 			}
 			for _, blk := range blocks {
-				if (skipBlocks!=0&&task.AsyncInfo.Built == skipBlocks-1) {
-					skipBlocks=0
-					task.AsyncInfo.Total-=task.AsyncInfo.Built
-					task.AsyncInfo.Built=0
+				if skipBlocks != 0 && task.AsyncInfo.Built == skipBlocks-1 {
+					skipBlocks = 0
+					task.AsyncInfo.Total -= task.AsyncInfo.Built
+					task.AsyncInfo.Built = 0
 					continue
 				}
 				if task.AsyncInfo.Built >= skipBlocks {
 					blockschannel <- blk
-					if skipBlocks!=0 {
-						skipBlocks=0
+					if skipBlocks != 0 {
+						skipBlocks = 0
 					}
 				}
 				task.AsyncInfo.Built++
@@ -253,8 +252,10 @@ func CreateTask(commandLine string, env *environment.PBEnvironment) *Task {
 			isFastMode = true
 		} else {
 			//isFastMode=false
-			cmdsender.SendWSCommand("gamemode c", und)
-			cmdsender.SendWSCommand("gamerule sendcommandfeedback true", und)
+			gameInterface.SendWSCommand("gamemode c")
+			if !args.SkipMCPCheckChallenges {
+				gameInterface.SendWSCommand("gamerule sendcommandfeedback true")
+			}
 		}
 		for {
 			task.ContinueLock.Lock()
@@ -262,76 +263,60 @@ func CreateTask(commandLine string, env *environment.PBEnvironment) *Task {
 			curblock, ok := <-blockschannel
 			if !ok {
 				if blkscounter == 0 {
-					cmdsender.Output(fmt.Sprintf(I18n.T(I18n.Task_D_NothingGenerated), taskid))
+					gameInterface.Output(fmt.Sprintf(I18n.T(I18n.Task_D_NothingGenerated), taskid))
 					runtime.GC()
 					task.Finalize()
 					return
 				}
 				timeUsed := time.Now().Sub(t1)
-				cmdsender.Output(fmt.Sprintf(I18n.T(I18n.Task_Summary_1), taskid, blkscounter))
-				cmdsender.Output(fmt.Sprintf(I18n.T(I18n.Task_Summary_2), taskid, timeUsed.Seconds()))
-				cmdsender.Output(fmt.Sprintf(I18n.T(I18n.Task_Summary_3), taskid, float64(blkscounter)/timeUsed.Seconds()))
+				gameInterface.Output(fmt.Sprintf(I18n.T(I18n.Task_Summary_1), taskid, blkscounter))
+				gameInterface.Output(fmt.Sprintf(I18n.T(I18n.Task_Summary_2), taskid, timeUsed.Seconds()))
+				gameInterface.Output(fmt.Sprintf(I18n.T(I18n.Task_Summary_3), taskid, float64(blkscounter)/timeUsed.Seconds()))
 				runtime.GC()
 				task.Finalize()
 				return
 			}
 			if blkscounter%20 == 0 {
-				u_d, _ := uuid.NewUUID()
-				cmdsender.SendWSCommand(fmt.Sprintf("tp %d %d %d", curblock.Point.X, curblock.Point.Y, curblock.Point.Z), u_d)
-				// SettingsCommand is unable to teleport the player.
+				gameInterface.SendSettingsCommand(fmt.Sprintf("tp %d %d %d", curblock.Point.X, curblock.Point.Y, curblock.Point.Z), true)
 			}
 			blkscounter++
-			if !cfg.ExcludeCommands && curblock.CommandBlockData != nil {
-				if curblock.Block != nil {
-					request:=commands_generator.SetBlockRequest(curblock, cfg)
-					if !isFastMode {
-						//<-time.After(time.Second)
-						wc := make(chan bool)
-						(*cmdsender.GetBlockUpdateSubscribeMap()).Store(protocol.BlockPos{int32(curblock.Point.X), int32(curblock.Point.Y), int32(curblock.Point.Z)}, wc)
-						cmdsender.SendDimensionalCommand(request)
-						select {
-						case <-wc:
-							break
-						case <-time.After(time.Second*2):
-							(*cmdsender.GetBlockUpdateSubscribeMap()).Delete(protocol.BlockPos{int32(curblock.Point.X), int32(curblock.Point.Y), int32(curblock.Point.Z)})
-						}
-						close(wc)
-					} else {
-						cmdsender.SendDimensionalCommand(request)
-					}
-				}
-				cbdata := curblock.CommandBlockData
-				if cfg.InvalidateCommands {
-					cbdata.Command = "|" + cbdata.Command
-				}
-				if !isFastMode {
-					UUID := uuid.New()
-					//w := make(chan *packet.CommandOutput)
-					//(*cmdsender.GetUUIDMap()).Store(UUID.String(), w)
-					cmdsender.SendWSCommand(fmt.Sprintf("tp %d %d %d", curblock.Point.X, curblock.Point.Y+1, curblock.Point.Z), UUID)
-					/*select {
-					case <-time.After(time.Second):
-						(*cmdsender.GetUUIDMap()).Delete(UUID.String())
-						break
-					case <-w:
-					}
-					close(w)*/
-				}
-				cmdsender.UpdateCommandBlock(int32(curblock.Point.X), int32(curblock.Point.Y), int32(curblock.Point.Z), cbdata)
-			} else if curblock.ChestSlot != nil {
-				cmdsender.SendDimensionalCommand(commands_generator.ReplaceItemRequest(curblock, cfg))
-			} else {
-				err := cmdsender.SendDimensionalCommand(commands_generator.SetBlockRequest(curblock, cfg))
+			if curblock.NBTMap != nil {
+				err := NBTAssigner.PlaceBlockWithNBTData(
+					gameInterface,
+					curblock,
+					&NBTAssigner.BlockAdditionalData{
+						Settings: cfg,
+						FastMode: isFastMode,
+						Others:   nil,
+					},
+				)
 				if err != nil {
-					panic(err)
+					pterm.Warning.Printf("CreateTask: %v\n", err)
 				}
-			} /*else if curblock.Entity != nil {
-				//request := commands_generator.SummonRequest(curblock, cfg)
-				//err := cmdsender.SendDimensionalCommand(request)
-				//if err != nil {
-				//	panic(err)
-				//}
-			}*/
+			} else if !cfg.ExcludeCommands && curblock.CommandBlockData != nil {
+				newStruct := NBTAssigner.CommandBlock{
+					BlockEntity: &NBTAssigner.BlockEntity{
+						Interface: gameInterface,
+						AdditionalData: NBTAssigner.BlockAdditionalData{
+							Position: [3]int32{int32(curblock.Point.X), int32(curblock.Point.Y), int32(curblock.Point.Z)},
+							Settings: cfg,
+							FastMode: isFastMode,
+							Others:   nil,
+						},
+					},
+					ShouldPlaceBlock: false,
+				}
+				err := newStruct.PlaceCommandBlockLegacy(curblock, cfg)
+				if err != nil {
+					pterm.Warning.Printf("%v\n", err)
+				}
+			} else if curblock.ChestSlot != nil {
+				gameInterface.SendSettingsCommand(commands_generator.ReplaceItemInContainerRequest(curblock, ""), true)
+			} else if len(cfg.Entity) != 0 {
+				gameInterface.SendSettingsCommand(commands_generator.SummonRequest(curblock, cfg), true)
+			} else {
+				gameInterface.SendSettingsCommand(commands_generator.SetBlockRequest(curblock, cfg), true)
+			}
 			if dcfg.DelayMode == types.DelayModeContinuous {
 				doDelay()
 			} else if dcfg.DelayMode == types.DelayModeDiscrete {
@@ -342,12 +327,12 @@ func CreateTask(commandLine string, env *environment.PBEnvironment) *Task {
 				}
 			}
 		}
-	} ()
+	}()
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
 				debug.PrintStack()
-				cmdsender.Output(fmt.Sprintf("[Task %d] Fatal error: %v", taskid, err))
+				gameInterface.Output(fmt.Sprintf("[Task %d] Fatal error: %v", taskid, err))
 				close(blockschannel)
 			}
 		}()
@@ -355,14 +340,14 @@ func CreateTask(commandLine string, env *environment.PBEnvironment) *Task {
 			err := builder.Generate(cfg, asyncblockschannel)
 			close(asyncblockschannel)
 			if err != nil {
-				cmdsender.Output(fmt.Sprintf("[%s %d] %s: %v", I18n.T(I18n.TaskTTeIuKoto), taskid, I18n.T(I18n.ERRORStr), err))
+				gameInterface.Output(fmt.Sprintf("[%s %d] %s: %v", I18n.T(I18n.TaskTTeIuKoto), taskid, I18n.T(I18n.ERRORStr), err))
 			}
 			return
 		}
 		err := builder.Generate(cfg, blockschannel)
 		close(blockschannel)
 		if err != nil {
-			cmdsender.Output(fmt.Sprintf("[%s %d] %s: %v", I18n.T(I18n.TaskTTeIuKoto), taskid, I18n.T(I18n.ERRORStr), err))
+			gameInterface.Output(fmt.Sprintf("[%s %d] %s: %v", I18n.T(I18n.TaskTTeIuKoto), taskid, I18n.T(I18n.ERRORStr), err))
 		}
 	}()
 	return task
@@ -383,23 +368,20 @@ func InitTaskStatusDisplay(env *environment.PBEnvironment) {
 	go func() {
 		for {
 			str := <-holder.BrokSender
-			env.CommandSender.Output(str)
-		}
-	}()
-	ticker := time.NewTicker(500 * time.Millisecond)
-	go func() {
-		for {
-			<-ticker.C
-			env.ActivateTaskStatus <- true
+			env.GameInterface.Output(str)
 		}
 	}()
 	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer func() {
+			ticker.Stop()
+		}()
 		for {
-			<-env.ActivateTaskStatus
 			if configuration.GlobalFullConfig(env).Global().TaskDisplayMode == types.TaskDisplayNo {
 				continue
 			}
 			var displayStrs []string
+			<-ticker.C
 			holder.TaskMap.Range(func(_tid interface{}, _v interface{}) bool {
 				tid, _ := _tid.(int64)
 				v, _ := _v.(*Task)
@@ -416,7 +398,7 @@ func InitTaskStatusDisplay(env *environment.PBEnvironment) {
 			if len(displayStrs) == 0 {
 				continue
 			}
-			env.CommandSender.Title(strings.Join(displayStrs, "\n"))
+			env.GameInterface.Title(strings.Join(displayStrs, "\n"))
 		}
 	}()
 }

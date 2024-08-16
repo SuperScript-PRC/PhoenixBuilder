@@ -3,8 +3,9 @@ package types
 type Module struct {
 	Block            *Block
 	CommandBlockData *CommandBlockData
+	DebugNBTData     []byte
 	NBTData          []byte
-	//Entity *Entity
+	NBTMap           map[string]interface{}
 	ChestSlot *ChestSlot
 	ChestData *ChestData
 	Point     Position
@@ -32,7 +33,7 @@ type CommandBlockData struct {
 	ExecuteOnFirstTick bool //byte
 	TrackOutput        bool //byte
 	Conditional        bool
-	NeedsRedstone       bool
+	NeedsRedstone      bool
 }
 
 type ChestData []ChestSlot
@@ -53,7 +54,6 @@ type DoubleModule struct {
 	Begin           Position
 	End             Position
 	Block, OldBlock *Block
-	Entity          *Entity
 }
 
 var takenBlocks map[*ConstBlock]*Block = make(map[*ConstBlock]*Block)

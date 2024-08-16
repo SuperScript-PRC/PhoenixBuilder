@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Bouldev 2021
+# Bouldev 2023
 # This script is for auto selecting PhoenixBuilder release prebuilts,
 # not for native compiling.
 #
@@ -26,15 +26,34 @@ function ctrl_c() {
 }
 
 # Start
-SCRIPT_VERSION="0.0.2"
+SCRIPT_VERSION="0.0.3"
 printf "\033[33mFastBuilder Phoenix Installer v%s\033[0m\n" "${SCRIPT_VERSION}"
 printf "\033[33mBouldev 2022, Copyrighted.\033[0m\n"
 printf "\033[32mStarting installation progress...\033[0m\n"
 
+# Some distro does not provide `which` by default
+WHICH_CMD=""
+for which_prog in "which" "which.debianutils" "command"; do
+  if [[ $which_prog == "command" ]]; then
+    if command -v apt >> /dev/null 2>&1; then
+      WHICH_CMD="command -v"
+    fi
+  else
+    # Try to search for themself by emself
+    if $which_prog $which_prog >> /dev/null 2>&1; then
+      WHICH_CMD="$which_prog"
+      break
+    fi
+  fi
+done
+if [[ "${WHICH_CMD}" == "" ]]; then
+  printf "\033[33mWarning: Unable to identify absolute location of executables.\033[0m\n"
+fi
+
 # Check whether uname(1) GNU or BSD
 UNAME_GET_OSNAME="uname -s"
 for uname_prog in "uname" "guname"; do
-  which ${uname_prog} > /dev/null 2>&1
+  ${WHICH_CMD} ${uname_prog} > /dev/null 2>&1
   if [ $? == 0 ]; then
     if [ $(${uname_prog} --version &> /dev/null; echo $?) == 0 ]; then
       UNAME_GET_OSNAME="${uname_prog} -o"
@@ -42,6 +61,7 @@ for uname_prog in "uname" "guname"; do
   fi
 done
 
+# TODO: Don't do tmps in prefix, use mktemp(1)
 # Check permissions and prefix
 echo "Checking permissions..."
 if [ "${DESTDIR}" ]; then
@@ -96,7 +116,7 @@ KERNEL_VERSION=$(uname -r)
 # is that they may return unexpected values.
 # e.g. "uname -m" returns device model name when on iOS
 arch_format() {
-  which arch > /dev/null 2>&1
+  ${WHICH_CMD} arch > /dev/null 2>&1
   if [ $? == 0 ]; then
     ARCH=$(arch)
   else
@@ -127,7 +147,7 @@ ARCH="$(arch_format)"
 MACHINE="$(machine_format)"
 # Darwin's uname is not reliable, using sw_vers to identify device family if possible
 if [ ${SYSTEM_NAME} == "Darwin" ]; then
-  which sw_vers > /dev/null 2>&1
+  ${WHICH_CMD} sw_vers > /dev/null 2>&1
   if [ $? == 0 ]; then
     if [ "$(sw_vers -productName)" == "macOS" ]; then
       MACHINE="macos"
@@ -158,10 +178,10 @@ DL_TOOL=""
 DL_TOOL_NAME=""
 DL_TOOL_OUT_FLAG="-o"
 for i in "curl" "wget" "axel" "aria2c"; do
-  which ${i} > /dev/null 2>&1
+  ${WHICH_CMD} ${i} > /dev/null 2>&1
   if [ $? == 0 ]; then
-    echo "Found ${i}: $(which ${i})"
-    DL_TOOL=$(which ${i})
+    echo "Found ${i}: $(${WHICH_CMD} ${i})"
+    DL_TOOL=$(${WHICH_CMD} ${i})
     DL_TOOL_NAME="${i}"
     break
   fi
@@ -180,10 +200,10 @@ INSTALL=""
 # GNU install is preferred, BSD install is okay though
 # On macOS, GNU install were installed using brew with name "ginstall"
 for i in "ginstall" "install"; do
-  which ${i} >/dev/null 2>&1
+  ${WHICH_CMD} ${i} >/dev/null 2>&1
   if [ $? == 0 ]; then
     printf "\033[32mFastBuilder will be installed by using ${i}: \033[0m"
-    printf "\033[32m$(which ${i})\033[0m\n"
+    printf "\033[32m$(${WHICH_CMD} ${i})\033[0m\n"
     INSTALL="${i} -m 0755"
     break
   fi
@@ -321,53 +341,53 @@ LAUNCH_CMD=""
 report_error() {
   if [ ${DL_TOOL_NAME} == "curl" ]; then
     if [ ${1} == 22 ]; then
-      printf "\033[031Download failure! Requested resources not exist! (curl: 22)\033[0m\n"
-      printf "\033[031 ${FB_LINK}\033[0m\n"
+      printf "\033[031mDownload failure! Requested resources not exist! (curl: 22)\033[0m\n"
+      printf "\033[031m ${FB_LINK}\033[0m\n"
     elif [ ${1} == 3 ]; then
-      printf "\033[031URL malformed. (curl: 3)\033[0m\n"
-      printf "\033[031Please report this bug!\033[0m\n"
+      printf "\033[031mURL malformed. (curl: 3)\033[0m\n"
+      printf "\033[031mPlease report this bug!\033[0m\n"
     elif [ ${1} == 23 ]; then
-        printf "\033[031Could not write data to local filesystem! (curl: 23)\033[0m\n"
-        printf "\033[031Check your r/w permissions before the installation.\033[0m\n"
+        printf "\033[031mCould not write data to local filesystem! (curl: 23)\033[0m\n"
+        printf "\033[031mCheck your r/w permissions before the installation.\033[0m\n"
     else
-        printf "\033[031Download failure! Please check your connections (curl: ${DL_RET}).\nStopping.\033[0m\n"
+        printf "\033[031mDownload failure! Please check your connections (curl: ${DL_RET}).\nStopping.\033[0m\n"
     fi
   elif [ ${DL_TOOL_NAME} == "wget" ]; then
     if [ ${1} == 1 ]; then
-      printf "\033[031Generic error (wget: 1)\nTry using curl?\033[0m\n"
+      printf "\033[031mGeneric error (wget: 1)\nTry using curl?\033[0m\n"
     elif [ ${1} == 2 ]; then
-      printf "\033[031Parse error, check your .wgetrc and .netrc (wget: 2)\033[0m\n"
+      printf "\033[031mParse error, check your .wgetrc and .netrc (wget: 2)\033[0m\n"
     elif [ ${1} == 3 ]; then
-      printf "\033[031File I/O error (wget: 3)\033[0m\n"
-      printf "\033[031Check your r/w permissions before the installation.\033[0m\n"
+      printf "\033[031mFile I/O error (wget: 3)\033[0m\n"
+      printf "\033[031mCheck your r/w permissions before the installation.\033[0m\n"
     elif [ ${1} == 8 ]; then
-      printf "\033[031Download failure! Requested resources not exist! (wget: 8)\033[0m\n"
-      printf "\033[031 ${FB_LINK}\033[0m\n"
+      printf "\033[031mDownload failure! Requested resources not exist! (wget: 8)\033[0m\n"
+      printf "\033[031m ${FB_LINK}\033[0m\n"
     else
-      printf "\033[031Download failure! Please check your connections (wget: ${1}).\nStopping.\033[0m\n"
+      printf "\033[031mDownload failure! Please check your connections (wget: ${1}).\nStopping.\033[0m\n"
     fi
   elif [ ${DL_TOOL_NAME} == "aria2c" ]; then
     if [ ${1} == 1 ]; then
-      printf "\033[031Unknown error occurred (aria2c: 1)\nTry using curl?\033[0m\n"
+      printf "\033[031mUnknown error occurred (aria2c: 1)\nTry using curl?\033[0m\n"
     elif [ ${1} == 3 ]; then
-      printf "\033[031Download failure! Requested resources not exist! (aria2c: 3)\033[0m\n"
-      printf "\033[031 ${FB_LINK}\033[0m\n"
+      printf "\033[031mDownload failure! Requested resources not exist! (aria2c: 3)\033[0m\n"
+      printf "\033[031m ${FB_LINK}\033[0m\n"
     elif [ ${1} == 9 ]; then
-      printf "\033[031Disk space not enough. (aria2c: 9)\nCleanup spaces before the installation!\033[0m\n"
+      printf "\033[031mDisk space not enough. (aria2c: 9)\nCleanup spaces before the installation!\033[0m\n"
     elif [[ ${1} == 15 ]] || [[ ${1} == 16 ]] || [[ ${1} == 17 ]] || [[ ${1} == 18 ]]; then
-      printf "\033[031Could not open/create file or directory (aria2c: ${1})\033[0m\n"
-      printf "\033[031Check your r/w permissions before the installation.\033[0m\n"
+      printf "\033[031mCould not open/create file or directory (aria2c: ${1})\033[0m\n"
+      printf "\033[031mCheck your r/w permissions before the installation.\033[0m\n"
     else
-      printf "\033[031Download failure! Please check your connections (aria2c: ${1}).\nStopping.\033[0m\n"
+      printf "\033[031mDownload failure! Please check your connections (aria2c: ${1}).\nStopping.\033[0m\n"
     fi
   elif [ ${DL_TOOL_NAME} == "axel" ]; then
     if [ ${1} == 1 ]; then
-      printf "\033[031Something went wrong (axel: 1)\nTry using curl?\033[0m\n"
+      printf "\033[031mSomething went wrong (axel: 1)\nTry using curl?\033[0m\n"
     else
-      printf "\033[031Download failure! Please check your connections (axel: ${DL_RET}).\nStopping.\033[0m\n"
+      printf "\033[031mDownload failure! Please check your connections (axel: ${DL_RET}).\nStopping.\033[0m\n"
     fi
   else
-    printf "\033[031Download failure! (${DL_TOOL}: ${DL_RET}).\nStopping.\033[0m\n"
+    printf "\033[031mDownload failure! (${DL_TOOL}: ${DL_RET}).\nStopping.\033[0m\n"
   fi
   quit_installer 1
 }

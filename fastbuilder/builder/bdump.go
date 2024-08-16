@@ -48,11 +48,11 @@ func BDump(config *types.MainConfig, blc chan *types.Module) error {
 		}
 	}
 	br := brotli.NewReader(file)
-	signed, corrupted, signer_username, err:=bdump.VerifyStreamBDX(br)
+	signed, corrupted, signer_username, err := bdump.VerifyStreamBDX(br)
 	if !signed {
 		if config.Strict {
 			return fmt.Errorf("%s.", I18n.T(I18n.BDump_FileNotSigned))
-		}else{
+		} else {
 			types.ForwardedBrokSender <- fmt.Sprintf("%s!", I18n.T(I18n.BDump_FileNotSigned))
 		}
 	}
@@ -61,7 +61,7 @@ func BDump(config *types.MainConfig, blc chan *types.Module) error {
 	}
 	// The original one is consumed
 	file.Seek(3, os.SEEK_SET)
-	br=brotli.NewReader(file)
+	br = brotli.NewReader(file)
 	if err != nil {
 		e := fmt.Errorf(I18n.T(I18n.BDump_VerificationFailedFor), err)
 		if config.Strict {
@@ -97,6 +97,12 @@ func BDump(config *types.MainConfig, blc chan *types.Module) error {
 		}
 		switch cmd := _cmd.(type) {
 		case *command.CreateConstantString:
+			if is_block_states(cmd.ConstantString) {
+				formatResult, err := format_block_states(cmd.ConstantString)
+				if err == nil {
+					cmd.ConstantString = formatResult
+				}
+			}
 			blocksStrPool = append(blocksStrPool, cmd.ConstantString)
 		case *command.AddInt16ZValue0:
 			brushPosition[2] += int(cmd.Value)
@@ -280,13 +286,13 @@ func BDump(config *types.MainConfig, blc chan *types.Module) error {
 				return fmt.Errorf("Error: BlockConstantStringID exceeded BlockPool length")
 			}
 			blockName := &blocksStrPool[int(cmd.BlockConstantStringID)]
-			pos:=types.Position{
+			pos := types.Position{
 				X: brushPosition[0] + config.Position.X,
 				Y: brushPosition[1] + config.Position.Y,
 				Z: brushPosition[2] + config.Position.Z,
 			}
 			blc <- &types.Module{
-				Block: &types.Block {
+				Block: &types.Block{
 					Name: blockName,
 					Data: cmd.BlockData,
 				},
@@ -326,6 +332,13 @@ func BDump(config *types.MainConfig, blc chan *types.Module) error {
 				return fmt.Errorf("Error: BlockID exceeded BlockPool")
 			}
 			blockName := &blocksStrPool[int(cmd.BlockConstantStringID)]
+			if is_block_states(cmd.BlockStatesString) {
+				blockStates, err := format_block_states(cmd.BlockStatesString)
+				if err != nil {
+					return fmt.Errorf("Error: Failed to parse the block states from string; err = %v", err)
+				}
+				cmd.BlockStatesString = blockStates
+			}
 			blc <- &types.Module{
 				Block: &types.Block{
 					Name:        blockName,
@@ -345,7 +358,7 @@ func BDump(config *types.MainConfig, blc chan *types.Module) error {
 				return fmt.Errorf("Error: BlockStatesID exceeded StringPool")
 			}
 			blockName := &blocksStrPool[int(cmd.BlockConstantStringID)]
-			blockStates:=blocksStrPool[int(cmd.BlockStatesConstantStringID)]
+			blockStates := blocksStrPool[int(cmd.BlockStatesConstantStringID)]
 			blc <- &types.Module{
 				Block: &types.Block{
 					Name:        blockName,
@@ -371,7 +384,7 @@ func BDump(config *types.MainConfig, blc chan *types.Module) error {
 					Name:        blockName,
 					BlockStates: blockStates,
 				},
-				NBTData: cmd.BlockNBT,
+				NBTMap: cmd.BlockNBT,
 				Point: types.Position{
 					X: brushPosition[0] + config.Position.X,
 					Y: brushPosition[1] + config.Position.Y,

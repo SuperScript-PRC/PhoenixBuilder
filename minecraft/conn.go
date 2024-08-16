@@ -8,8 +8,9 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/sandertv/go-raknet"
+	"io"
+	"log"
+	"net"
 	"phoenixbuilder/minecraft/internal"
 	"phoenixbuilder/minecraft/nbt"
 	"phoenixbuilder/minecraft/protocol"
@@ -17,15 +18,15 @@ import (
 	"phoenixbuilder/minecraft/protocol/packet"
 	"phoenixbuilder/minecraft/resource"
 	"phoenixbuilder/minecraft/text"
-	"go.uber.org/atomic"
-	"gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/jwt"
-	"io"
-	"log"
-	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/sandertv/go-raknet"
+	"go.uber.org/atomic"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 // exemptedResourcePack is a resource pack that is exempted from being downloaded. These packs may be directly
@@ -125,7 +126,7 @@ type Conn struct {
 	disconnectMessage atomic.String
 
 	shieldID atomic.Int32
-	
+
 	DebugMode bool
 }
 
@@ -162,6 +163,10 @@ func newConn(netConn net.Conn, key *ecdsa.PrivateKey, log *log.Logger) *Conn {
 		}
 	}()
 	return conn
+}
+
+func (conn *Conn) GetShieldID() int32 {
+	return conn.shieldID.Load()
 }
 
 // IdentityData returns the identity data of the connection. It holds the UUID, XUID and username of the
@@ -312,6 +317,37 @@ func (conn *Conn) WritePacket(pk packet.Packet) error {
 	l := buf.Len()
 
 	pk.Marshal(protocol.NewWriter(buf, conn.shieldID.Load()))
+	if conn.packetFunc != nil {
+		conn.packetFunc(*conn.hdr, buf.Bytes()[l:], conn.LocalAddr(), conn.RemoteAddr())
+	}
+
+	conn.bufferedSend = append(conn.bufferedSend, append([]byte(nil), buf.Bytes()...))
+	return nil
+}
+
+func (conn *Conn) WriteRawPacket(pkID uint32, data []byte) error {
+	if conn.DebugMode {
+		return nil
+	}
+	select {
+	case <-conn.close:
+		return conn.closeErr("write packet")
+	default:
+	}
+	conn.sendMu.Lock()
+	defer conn.sendMu.Unlock()
+
+	buf := internal.BufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		// Reset the buffer so we can return it to the buffer pool safely.
+		buf.Reset()
+		internal.BufferPool.Put(buf)
+	}()
+
+	conn.hdr.PacketID = pkID
+	_ = conn.hdr.Write(buf)
+	l := buf.Len()
+	buf.Write(data)
 	if conn.packetFunc != nil {
 		conn.packetFunc(*conn.hdr, buf.Bytes()[l:], conn.LocalAddr(), conn.RemoteAddr())
 	}

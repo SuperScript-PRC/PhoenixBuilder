@@ -110,6 +110,7 @@ var I18nDict_en_US map[uint16]string = map[uint16]string{
 	SimpleParser_InvEnum:                "Parser: Invalid enum value, allowed values are: %s.",
 	SimpleParser_Invalid_decider:        "Parser: Invalid decider",
 	SimpleParser_Too_few_args:           "Parser: Too few arguments",
+	SkipMCPCheckChallengesLimit:         "The feature being invoked has been disabled due to you enable the skip-mcpc-check-challenges option.",
 	Special_Startup:                     "Enabled language: English\n",
 	TaskCreated:                         "Task Created",
 	TaskDisplayModeSet:                  "Task status display mode set to: %s.",
@@ -136,6 +137,7 @@ var I18nDict_en_US map[uint16]string = map[uint16]string{
 	Task_Summary_2:                      "[Task %d] Time used: %v second(s)",
 	Task_Summary_3:                      "[Task %d] Average speed: %v blocks/second",
 	UnsupportedACMEVersion:              "Unsupported ACME structure version. Only acme file version 1.2 is supported.",
-	Warning_ACME_Deprecated:             "WARNING - `acme' is deprecated and will be removed in future, please migrate to other format instead.\n",
+	Warning_ACME_Deprecated:             "WARNING - `acme' is deprecated and has been removed, please migrate to BDX format instead.\nSee https://github.com/LNSSPsd/PhoenixBuilder/issues/313 for more informations.",
+	Warning_Schem_Deprecated:            "WARNING - `schem' is deprecated and has been removed, please migrate to BDX format instead. \nSee https://github.com/LNSSPsd/PhoenixBuilder/issues/313 for more informations.",
 	Warning_UserHomeDir:                 "WARNING - Failed to obtain the user's home directory. made homedir=\".\";\n",
 }

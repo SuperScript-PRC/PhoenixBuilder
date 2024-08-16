@@ -8,6 +8,8 @@ import (
 	"phoenixbuilder/fastbuilder/external/packet"
 	"phoenixbuilder/fastbuilder/uqHolder"
 	"phoenixbuilder/minecraft"
+	"phoenixbuilder/minecraft/protocol"
+	mc_packet "phoenixbuilder/minecraft/protocol/packet"
 	"time"
 )
 
@@ -45,6 +47,7 @@ func (nbr *NoEOFByteReader) ReadByte() (b byte, err error) {
 	nbr.i++
 	return b, nil
 }
+
 func (handler *ExternalConnectionHandler) acceptConnection(conn connection.ReliableConnection) {
 	env := handler.env
 	allAlive := true
@@ -52,7 +55,8 @@ func (handler *ExternalConnectionHandler) acceptConnection(conn connection.Relia
 	<-handler.AcceptConsumerChannel
 	pingDeadline := time.Now().Add(time.Second * 5)
 	bufferChan := make(chan []byte, 1024*8)
-	clientPacketChan := make(chan []byte, 1024)
+	packetFromClientOrigin := make(chan []byte, 1024)
+	packetFromClient := make(chan packet.Packet, 1024)
 	skipMap := make(map[uint8]uint8)
 	hitMap := make(map[uint8]uint8)
 	setSkip := func(ID uint8, possib uint8) {
@@ -62,7 +66,7 @@ func (handler *ExternalConnectionHandler) acceptConnection(conn connection.Relia
 	go func() {
 		for {
 			select {
-			case clientPackets := <-clientPacketChan:
+			case clientPackets := <-packetFromClientOrigin:
 				pingDeadline = time.Now().Add(time.Second * 5)
 				pkt, canParse := packet.Deserialize(clientPackets)
 				if !canParse {
@@ -80,27 +84,10 @@ func (handler *ExternalConnectionHandler) acceptConnection(conn connection.Relia
 					packet.SerializeAndSend(&packet.ByePacket{}, conn)
 				case *packet.PacketViolationWarningPacket:
 					break
-				case *packet.EvalPBCommandPacket:
-					handler.env.FunctionHolder.Process(p.Command)
-				case *packet.GameCommandPacket:
-					if p.CommandType == packet.CommandTypeSettings {
-						env.CommandSender.SendSizukanaCommand(p.Command)
-						break
-					} else if p.CommandType == packet.CommandTypeNormal {
-						env.CommandSender.SendWSCommand(p.Command, p.UUID)
-					} else {
-						env.CommandSender.SendCommand(p.Command, p.UUID)
-					}
-				case *packet.GamePacket:
-					(env.Connection).(*minecraft.Conn).Write(p.Content)
 				case *packet.GamePacketReducePacket:
 					setSkip(p.PacketID, p.DropBy)
-				case *packet.UQHolderRequestPacket:
-					//q:=string(p.QueryString)
-					//if q=="*"
-					packet.SerializeAndSend(&packet.UQHolderResponsePacket{
-						Content: (env.UQHolder).(*uqHolder.UQHolder).Marshal(),
-					}, conn)
+				default:
+					packetFromClient <- p
 				}
 			case gamePacket := <-bufferChan:
 				if !allAlive {
@@ -114,13 +101,63 @@ func (handler *ExternalConnectionHandler) acceptConnection(conn connection.Relia
 		}
 	}()
 	go func() {
+		<-env.MCPCheckChallengeSolveDown
+		env.MCPCheckChallengeSolveDown <- struct{}{}
+		for {
+			pkt := <-packetFromClient
+			switch p := pkt.(type) {
+			case *packet.EvalPBCommandPacket:
+				handler.env.FunctionHolder.Process(p.Command)
+			case *packet.GameCommandPacket:
+				switch p.CommandType {
+				case packet.CommandTypeNormal:
+					env.Connection.(*minecraft.Conn).WritePacket(
+						&mc_packet.CommandRequest{
+							CommandLine: p.Command,
+							CommandOrigin: protocol.CommandOrigin{
+								Origin:    protocol.CommandOriginPlayer,
+								UUID:      p.UUID,
+								RequestID: "96045347-a6a3-4114-94c0-1bc4cc561694",
+							},
+							Internal:  false,
+							UnLimited: false,
+						},
+					)
+				case packet.CommandTypeWebsocket:
+					env.Connection.(*minecraft.Conn).WritePacket(
+						&mc_packet.CommandRequest{
+							CommandLine: p.Command,
+							CommandOrigin: protocol.CommandOrigin{
+								Origin:    protocol.CommandOriginAutomationPlayer,
+								UUID:      p.UUID,
+								RequestID: "96045347-a6a3-4114-94c0-1bc4cc561694",
+							},
+							Internal:  false,
+							UnLimited: false,
+						},
+					)
+				case packet.CommandTypeSettings:
+					env.GameInterface.SendSettingsCommand(p.Command, false)
+				}
+			case *packet.GamePacket:
+				(env.Connection).(*minecraft.Conn).Write(p.Content)
+			case *packet.UQHolderRequestPacket:
+				//q:=string(p.QueryString)
+				//if q=="*"
+				packet.SerializeAndSend(&packet.UQHolderResponsePacket{
+					Content: (env.UQHolder).(*uqHolder.UQHolder).Marshal(),
+				}, conn)
+			}
+		}
+	}()
+	go func() {
 		for {
 			rawPacket, err := conn.RecvFrame()
 			if err != nil || !allAlive {
 				allAlive = false
 				return
 			}
-			clientPacketChan <- rawPacket
+			packetFromClientOrigin <- rawPacket
 		}
 	}()
 	go func() {

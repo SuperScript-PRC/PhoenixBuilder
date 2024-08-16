@@ -26,7 +26,8 @@ type User struct {
 }
 
 type UniversalMessage struct {
-	Message     string `json:"message"`
+	Message     interface{} `json:"message"`
+	RawMessage  string      `json:"raw_message"`
 	GameRawText string
 	MessageType string `json:"message_type"`
 }

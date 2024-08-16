@@ -134,6 +134,7 @@ const (
 	SimpleParser_InvEnum
 	SimpleParser_Invalid_decider
 	SimpleParser_Too_few_args
+	SkipMCPCheckChallengesLimit
 	SysError_EACCES
 	SysError_EBUSY
 	SysError_EINVAL
@@ -168,6 +169,7 @@ const (
 	Task_Summary_3
 	UnsupportedACMEVersion
 	Warning_ACME_Deprecated
+	Warning_Schem_Deprecated
 	Warning_UserHomeDir
 )
 

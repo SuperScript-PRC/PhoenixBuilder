@@ -1,34 +1,31 @@
-//go:build !is_tweak
-// +build !is_tweak
-
 package special_tasks
 
 import (
-	"encoding/json"
 	"fmt"
 	"phoenixbuilder/fastbuilder/bdump"
 	"phoenixbuilder/fastbuilder/configuration"
 	"phoenixbuilder/fastbuilder/environment"
 	"phoenixbuilder/fastbuilder/mcstructure"
 	"phoenixbuilder/fastbuilder/parsing"
+	fbauth "phoenixbuilder/fastbuilder/pv4"
 	"phoenixbuilder/fastbuilder/task"
+	GameInterface "phoenixbuilder/game_control/game_interface"
+	ResourcesControl "phoenixbuilder/game_control/resources_control"
 	"phoenixbuilder/minecraft"
 	"phoenixbuilder/minecraft/protocol"
 	"phoenixbuilder/minecraft/protocol/packet"
 	"runtime/debug"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/pterm/pterm"
 )
 
 func CreateLegacyExportTask(commandLine string, env *environment.PBEnvironment) *task.Task {
 	cfg, err := parsing.Parse(commandLine, configuration.GlobalFullConfig(env).Main())
 	if err != nil {
-		env.CommandSender.Output(pterm.Error.Sprintf("Failed to parse command: %v", err))
+		env.GameInterface.Output(pterm.Error.Sprintf("Failed to parse command: %v", err))
 		return nil
 	}
-	// 解析控制台输入
 	beginPos := cfg.Position
 	endPos := cfg.End
 	if beginPos.X > endPos.X {
@@ -53,34 +50,32 @@ func CreateLegacyExportTask(commandLine string, env *environment.PBEnvironment) 
 	if endPos.Y > 320 {
 		endPos.Y = 320
 	}
+	gameInterface := env.GameInterface.(*GameInterface.GameInterface)
 	go func() {
 		defer func() {
 			err := recover()
 			if err != nil {
 				debug.PrintStack()
-				env.CommandSender.Output(pterm.Error.Sprintf("go routine @ fastbuilder.task lexport crashed"))
-				env.CommandSender.Output(pterm.Error.Sprintf("%v", err))
+				env.GameInterface.Output(pterm.Error.Sprintf("go routine @ fastbuilder.task lexport crashed"))
+				env.GameInterface.Output(pterm.Error.Sprintf("%v", err))
 			}
 		}()
 
-		u_d0, _ := uuid.NewUUID()
-		env.CommandSender.SendWSCommand("gamemode c", u_d0)
-
-		u_d1, _ := uuid.NewUUID()
-		chann := make(chan *packet.CommandOutput)
-		(*env.CommandSender.GetUUIDMap()).Store(u_d1.String(), chann)
-		env.CommandSender.SendWSCommand("querytarget @s", u_d1)
-		resp := <-chann
-		close(chann)
-		var dimension float64 = 0
-		var got interface{}
+		gameInterface.SendWSCommand("gamemode c")
 		var testAreaIsLoaded string = "testforblocks ~-31 -64 ~-31 ~31 319 ~31 ~-31 -64 ~-31"
-		json.Unmarshal([]byte(resp.OutputMessages[0].Parameters[0]), &got)
-		dimension = got.([]interface{})[0].(map[string]interface{})["dimension"].(float64)
-		if dimension == 1 {
+
+		resp := gameInterface.SendWSCommandWithResponse(
+			"querytarget @s",
+			ResourcesControl.CommandRequestOptions{
+				TimeOut: ResourcesControl.CommandRequestNoDeadLine,
+			},
+		)
+		parseResult, _ := gameInterface.ParseTargetQueryingInfo(*resp.Respond)
+
+		if parseResult[0].Dimension == 1 {
 			testAreaIsLoaded = "testforblocks ~-31 0 ~-31 ~31 127 ~31 ~-31 0 ~-31"
 		}
-		if dimension == 2 {
+		if parseResult[0].Dimension == 2 {
 			testAreaIsLoaded = "testforblocks ~-31 0 ~-31 ~31 255 ~31 ~-31 0 ~-31"
 		}
 		// 这个前置准备用于后面判断被导出区域是否加载
@@ -97,58 +92,53 @@ func CreateLegacyExportTask(commandLine string, env *environment.PBEnvironment) 
 		allAreas := make([]mcstructure.Mcstructure, 0)
 		for key, value := range splittedAreas {
 			currentProgress := indicativeMap[key]
-			env.CommandSender.Output(pterm.Info.Sprintf("Fetching data from area [%d, %d]", currentProgress[0], currentProgress[1]))
-			u_d2, _ := uuid.NewUUID()
-			wchan := make(chan *packet.CommandOutput)
-			(*env.CommandSender.GetUUIDMap()).Store(u_d2.String(), wchan)
-			env.CommandSender.SendWSCommand(fmt.Sprintf("tp %d %d %d", value.BeginX+value.SizeX/2, value.BeginY+value.SizeY/2, value.BeginZ+value.SizeZ/2), u_d2)
-			<-wchan
-			close(wchan)
-			// Wait until the chunks successfully load
+			env.GameInterface.Output(pterm.Info.Sprintf("Fetching data from area [%d, %d]", currentProgress[0], currentProgress[1]))
+			gameInterface.SendSettingsCommand(fmt.Sprintf("tp %d %d %d", value.BeginX+value.SizeX/2, value.BeginY+value.SizeY/2, value.BeginZ+value.SizeZ/2), true)
+
 			for {
-				u_d3, _ := uuid.NewUUID()
-				chann := make(chan *packet.CommandOutput)
-				(*env.CommandSender.GetUUIDMap()).Store(u_d3.String(), chann)
-				env.CommandSender.SendWSCommand(testAreaIsLoaded, u_d3)
-				resp := <-chann
-				close(chann)
-				//fmt.Printf("%#v\n",resp)
-				if resp.OutputMessages[0].Message != "commands.generic.outOfWorld" {
+				resp := gameInterface.SendWSCommandWithResponse(
+					testAreaIsLoaded,
+					ResourcesControl.CommandRequestOptions{
+						TimeOut: ResourcesControl.CommandRequestNoDeadLine,
+					},
+				)
+				if resp.Respond.OutputMessages[0].Message != "commands.generic.outOfWorld" {
 					break
 				}
 			}
 			// 等待当前被访问的区块加载完成
-			ExportWaiter = make(chan map[string]interface{})
-			env.Connection.(*minecraft.Conn).WritePacket(&packet.StructureTemplateDataRequest{
-				StructureName: "mystructure:aaaaa",
-				Position:      protocol.BlockPos{int32(value.BeginX), int32(value.BeginY), int32(value.BeginZ)},
-				Settings: protocol.StructureSettings{
-					PaletteName:               "default",
-					IgnoreEntities:            true,
-					IgnoreBlocks:              false,
-					Size:                      protocol.BlockPos{int32(value.SizeX), int32(value.SizeY), int32(value.SizeZ)},
-					Offset:                    protocol.BlockPos{0, 0, 0},
-					LastEditingPlayerUniqueID: env.Connection.(*minecraft.Conn).GameData().EntityUniqueID,
-					Rotation:                  0,
-					Mirror:                    0,
-					Integrity:                 100,
-					Seed:                      0,
-					AllowNonTickingChunks:     false,
+			holder := gameInterface.Resources.Structure.Occupy()
+			exportData, _ := gameInterface.SendStructureRequestWithResponse(
+				&packet.StructureTemplateDataRequest{
+					StructureName: "mystructure:bbbbb",
+					Position:      protocol.BlockPos{int32(value.BeginX), int32(value.BeginY), int32(value.BeginZ)},
+					Settings: protocol.StructureSettings{
+						PaletteName:               "default",
+						IgnoreEntities:            true,
+						IgnoreBlocks:              false,
+						Size:                      protocol.BlockPos{int32(value.SizeX), int32(value.SizeY), int32(value.SizeZ)},
+						Offset:                    protocol.BlockPos{0, 0, 0},
+						LastEditingPlayerUniqueID: env.Connection.(*minecraft.Conn).GameData().EntityUniqueID,
+						Rotation:                  0,
+						Mirror:                    0,
+						Integrity:                 100,
+						Seed:                      0,
+						AllowNonTickingChunks:     false,
+					},
+					RequestType: packet.StructureTemplateRequestExportFromSave,
 				},
-				RequestType: packet.StructureTemplateRequestExportFromSave,
-			})
-			exportData := <-ExportWaiter
-			close(ExportWaiter)
+			)
+			gameInterface.Resources.Structure.Release(holder)
 			// 获取 mcstructure
-			got, err := mcstructure.GetMCStructureData(value, exportData)
+			got, err := mcstructure.GetMCStructureData(value, exportData.StructureTemplate)
 			if err != nil {
 				panic(err)
 			} else {
 				allAreas = append(allAreas, got)
 			}
 		}
-		env.CommandSender.Output(pterm.Info.Sprint("Data received, processing......"))
-		env.CommandSender.Output(pterm.Info.Sprint("Extracting blocks......"))
+		env.GameInterface.Output(pterm.Info.Sprint("Data received, processing......"))
+		env.GameInterface.Output(pterm.Info.Sprint("Extracting blocks......"))
 
 		processedData, err := mcstructure.DumpBlocks(allAreas, reversedMap, mcstructure.Area{
 			BeginX: int32(beginPos.X),
@@ -169,17 +159,17 @@ func CreateLegacyExportTask(commandLine string, env *environment.PBEnvironment) 
 			cfg.Path += ".bdx"
 		}
 
-		env.CommandSender.Output(pterm.Info.Sprint("Writing output file......"))
-		err, signerr := outputResult.WriteToFile(cfg.Path, env.LocalCert, env.LocalKey)
+		env.GameInterface.Output(pterm.Info.Sprint("Writing output file......"))
+		err, signerr := outputResult.WriteToFile(cfg.Path, env.FBAuthClient.(*fbauth.Client).LocalCert, env.FBAuthClient.(*fbauth.Client).LocalKey)
 		if err != nil {
-			env.CommandSender.Output(pterm.Error.Sprintf("Failed to export: %v", err))
+			env.GameInterface.Output(pterm.Error.Sprintf("Failed to export: %v", err))
 			return
 		} else if signerr != nil {
-			env.CommandSender.Output(pterm.Info.Sprintf("Note: The file is unsigned since the following error was trapped: %v", signerr))
+			env.GameInterface.Output(pterm.Info.Sprintf("Note: The file is unsigned since the following error was trapped: %v", signerr))
 		} else {
-			env.CommandSender.Output(pterm.Success.Sprint("File signed successfully"))
+			env.GameInterface.Output(pterm.Success.Sprint("File signed successfully"))
 		}
-		env.CommandSender.Output(pterm.Success.Sprintf("Successfully exported your structure to %v", cfg.Path))
+		env.GameInterface.Output(pterm.Success.Sprintf("Successfully exported your structure to %v", cfg.Path))
 	}()
 	return nil
 }

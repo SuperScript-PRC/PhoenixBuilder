@@ -2,6 +2,7 @@ package defines
 
 import (
 	"phoenixbuilder/fastbuilder/uqHolder"
+	GameInterface "phoenixbuilder/game_control/game_interface"
 	"phoenixbuilder/minecraft/protocol"
 	"phoenixbuilder/minecraft/protocol/packet"
 	"phoenixbuilder/mirror"
@@ -127,10 +128,15 @@ type BackendInteract interface {
 	SetBackendCmdInterceptor(func(cmds []string) (stop bool))
 }
 
+type ExtendOperation interface {
+}
+
 // 与游戏的交互接口，通过发出点什么来影响游戏
 // 建议扩展该接口以提供更丰富的功能
 // 另一种扩展方式是定义新插件并暴露接口
 type GameControl interface {
+	GetInteraction() GameInterface.GameInterface
+	SendMCPacket(packet.Packet)
 	SayTo(target string, msg string)
 	RawSayTo(target string, msg string)
 	ActionBarTo(target string, msg string)
@@ -142,7 +148,6 @@ type GameControl interface {
 	SendWOCmd(cmd string)
 	SendCmdAndInvokeOnResponse(string, func(output *packet.CommandOutput))
 	SendCmdAndInvokeOnResponseWithFeedback(string, func(output *packet.CommandOutput))
-	SendMCPacket(packet.Packet)
 	GetPlayerKit(name string) PlayerKit
 	GetPlayerKitByUUID(ud uuid.UUID) PlayerKit
 	SetOnParamMsg(string, func(chat *GameChat) (catch bool)) error

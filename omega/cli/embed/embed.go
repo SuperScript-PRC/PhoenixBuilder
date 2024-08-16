@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"phoenixbuilder/fastbuilder/environment"
 	"phoenixbuilder/fastbuilder/function"
+	fbauth "phoenixbuilder/fastbuilder/pv4"
 	"phoenixbuilder/fastbuilder/uqHolder"
+	GameInterface "phoenixbuilder/game_control/game_interface"
 	"phoenixbuilder/minecraft"
 	mc_packet "phoenixbuilder/minecraft/protocol/packet"
 	"phoenixbuilder/mirror"
@@ -49,6 +51,10 @@ func (rc *EmbeddedAdaptor) GetInitUQHolderCopy() *uqHolder.UQHolder {
 	return newHolder
 }
 
+func (rc *EmbeddedAdaptor) GetInteraction() *GameInterface.GameInterface {
+	return rc.env.GameInterface.(*GameInterface.GameInterface)
+}
+
 func (rc *EmbeddedAdaptor) Write(pkt mc_packet.Packet) (err error) {
 	return rc.env.Connection.(*minecraft.Conn).WritePacket(pkt)
 }
@@ -76,7 +82,7 @@ func (ea *EmbeddedAdaptor) QuerySensitiveInfo(key defines.SensitiveInfoType) (re
 	case defines.SENSITIVE_INFO_SERVER_CODE_HASH:
 		rawVal = ea.env.ServerCode
 	case defines.SENSITIVE_INFO_USERNAME_HASH:
-		_frags := strings.Split(ea.env.FBUCUsername, "|")
+		_frags := strings.Split(ea.env.FBAuthClient.(*fbauth.Client).FBUCUsername, "|")
 		if len(_frags) > 0 {
 			rawVal = _frags[0]
 		}

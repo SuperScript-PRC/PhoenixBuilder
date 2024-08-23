@@ -111,10 +111,10 @@ func (b *SnowMenu) MenuTitle(list map[string]map[string]int) {
 			//实现雪球加分
 			b.Frame.GetGameControl().SendCmd("scoreboard players rest @a[rxm=88] " + b.Snowscore + " ")
 
-			b.Frame.GetGameControl().SendCmdAndInvokeOnResponse("execute @e[type=snowball] ~~~ give @p[r=5] snowball", func(output *packet.CommandOutput) {
+			b.Frame.GetGameControl().SendCmdAndInvokeOnResponse("execute as @e[type=snowball] at @s run give @p[r=5] snowball", func(output *packet.CommandOutput) {
 				if output.SuccessCount > 0 {
 					b.Circulate()
-					b.Frame.GetGameControl().SendCmd("execute @e[type=snowball] ~~~ scoreboard players add @p " + b.Snowscore + " 1")
+					b.Frame.GetGameControl().SendCmd("execute as @e[type=snowball] at @s run scoreboard players add @p " + b.Snowscore + " 1")
 					b.Frame.GetGameControl().SendCmd("kill @e[type=snowball]")
 
 				}

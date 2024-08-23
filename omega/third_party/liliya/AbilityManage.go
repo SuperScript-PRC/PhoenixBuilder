@@ -1,5 +1,10 @@
 package liliya
 
+/*
+Deprecated this because ability related packets was changed.
+
+
+
 import (
 	"encoding/json"
 	"fmt"
@@ -223,3 +228,4 @@ func (o *AbilityManage) Activate() {
 		<-t.C
 	}
 }
+*/

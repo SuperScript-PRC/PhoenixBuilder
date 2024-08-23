@@ -1,5 +1,10 @@
 package components
 
+/*
+Deprecated this because we don't have item runtime id table.
+
+
+
 import (
 	"encoding/json"
 	"fmt"
@@ -99,3 +104,4 @@ func (o *MobSpawnerScan) Inject(frame defines.MainFrame) {
 	o.Frame = frame
 	o.Frame.GetGameListener().SetOnLevelChunkCallBack(o.onLevelChunk)
 }
+*/

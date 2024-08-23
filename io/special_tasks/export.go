@@ -1,19 +1,18 @@
 package special_tasks
 
 import (
-	"bytes"
 	"fmt"
 	"phoenixbuilder/fastbuilder/bdump"
 	"phoenixbuilder/fastbuilder/configuration"
 	"phoenixbuilder/fastbuilder/environment"
+	"phoenixbuilder/fastbuilder/mcstructure"
 	"phoenixbuilder/fastbuilder/parsing"
-	fbauth "phoenixbuilder/fastbuilder/pv4"
 	"phoenixbuilder/fastbuilder/task"
 	"phoenixbuilder/fastbuilder/task/fetcher"
 	"phoenixbuilder/fastbuilder/types"
-	"phoenixbuilder/minecraft/protocol/packet"
+	"phoenixbuilder/minecraft/nbt"
 	"phoenixbuilder/mirror"
-	"phoenixbuilder/mirror/chunk"
+	Blocks "phoenixbuilder/mirror/blocks"
 	"phoenixbuilder/mirror/define"
 	"phoenixbuilder/mirror/io/global"
 	"phoenixbuilder/mirror/io/lru"
@@ -66,7 +65,7 @@ func CreateExportTask(commandLine string, env *environment.PBEnvironment) *task.
 	teleportFn := func(x, z int) {
 		cmd := fmt.Sprintf("tp @s %v 128 %v", x, z)
 		env.GameInterface.SendCommand(cmd)
-		cmd = fmt.Sprintf("execute @s ~~~ spreadplayers ~ ~ 3 4 @s")
+		cmd = fmt.Sprintf("execute as @s at @s run spreadplayers ~ ~ 3 4 @s")
 		env.GameInterface.SendCommand(cmd)
 	}
 	feedChan := make(chan *fetcher.ChunkDefineWithPos, 1024)
@@ -132,223 +131,45 @@ func CreateExportTask(commandLine string, env *environment.PBEnvironment) *task.
 		for x := beginPos.X; x <= endPos.X; x++ {
 			for z := beginPos.Z; z <= endPos.Z; z++ {
 				for y := beginPos.Y; y <= endPos.Y; y++ {
-					runtimeId, item, found := offlineWorld.BlockWithNbt(define.CubePos{x, y, z})
+					var tagNBTData []byte
+					var blockNBTBytes []byte
+					runtimeId, blockNBTMap, found := offlineWorld.BlockWithNbt(define.CubePos{x, y, z})
 					if !found {
-						fmt.Printf("WARNING %d %d %d not found\n", x, y, z)
+						fmt.Printf("WARNING: %d %d %d not found\n", x, y, z)
 					}
-					//block, item:=blk.EncodeBlock()
-					block, static_item, _ := chunk.RuntimeIDToState(runtimeId)
-					if block == "minecraft:air" {
-						continue
+					blockName, blockStates, _ := Blocks.RuntimeIDToState(runtimeId)
+					blockStatesString, err := mcstructure.MarshalBlockStates(blockStates)
+					if err != nil {
+						fmt.Printf("WARNING: Failed to marshal block states %#v; err = %v\n", blockStates, err)
 					}
-					var cbdata *types.CommandBlockData = nil
-					var chestData *types.ChestData = nil
-					var nbtData []byte = nil
-					/*if(block=="chest"||block=="minecraft:chest"||strings.Contains(block,"shulker_box")) {
-						content:=item["Items"].([]interface{})
-						chest:=make(types.ChestData, len(content))
-						for index, iface := range content {
-							i:=iface.(map[string]interface{})
-							name:=i["Name"].(string)
-							count:=i["Count"].(uint8)
-							damage:=i["Damage"].(int16)
-							slot:=i["Slot"].(uint8)
-							name_mcnk:=name[10:]
-							chest[index]=types.ChestSlot {
-								Name: name_mcnk,
-								Count: count,
-								Damage: uint16(int(damage)),
-								Slot: slot,
-							}
+					pnd, hasNBT := blockNBTMap["__tag"].(string)
+					if hasNBT {
+						tagNBTData = []byte(pnd)
+					}
+					if len(blockNBTMap) > 0 {
+						if strings.Contains(blockName, "command_block") {
+							blockNBTMap["conditionalMode"] = blockStates["conditional_bit"].(byte)
 						}
-						chestData=&chest
-					}*/
-					// TODO ^ Hope someone could help me to do that, just like what I did below ^
-					if strings.Contains(block, "command_block") {
-						/*
-							=========
-							Reference
-							=========
-							Types for command blocks are checked by their names
-							Whether a command block is conditional is checked through its data value.
-							SINCE IT IS NOT INCLUDED IN NBT DATA.
-
-							The content of __tag is NBT data w/o keys, flatten placed,
-							in such order:
-
-							isMovable:byte
-							CustomName:string
-							UserCustomData:string
-							powered:byte
-							auto:byte
-							conditionMet:byte
-							LPConditionalMode:byte
-							LPRedstoneMode:byte
-							LPCommandMode:byte
-							Command:string
-							Version:VarInt32
-							SuccessCount:VarInt32
-							CustomName:string
-							LastOutput:string
-							LastOutputParams:list[string]
-							TrackOutput:byte
-							LastExecution:VarInt64
-							TickDelay:VarInt32
-							ExecuteOnFirstTick:byte
-						*/
-						__tag := []byte(item["__tag"].(string))
-						//fmt.Printf("CMDBLK %#v\n\n",item["__tag"])
-						var mode uint32
-						if block == "command_block" || block == "minecraft:command_block" {
-							mode = packet.CommandBlockImpulse
-						} else if block == "repeating_command_block" || block == "minecraft:repeating_command_block" {
-							mode = packet.CommandBlockRepeating
-						} else if block == "chain_command_block" || block == "minecraft:chain_command_block" {
-							mode = packet.CommandBlockChain
-						}
-						tagContent := bytes.NewBuffer(__tag)
-						tagContent.Next(1)
-						// ^ Skip: [isMovable:byte]
-						_, err := readNBTString(tagContent)
+						blockNBTBytes, err = nbt.MarshalEncoding(blockNBTMap, nbt.LittleEndian)
 						if err != nil {
-							panic(err)
-						}
-						// ^ Skip: [CustomName:string]
-						_, err = readNBTString(tagContent)
-						if err != nil {
-							panic(err)
-						}
-						// ^ Skip: [UserCustomData:string]
-						tagContent.Next(1)
-						// ^ Skip: [powered:byte]
-						aut, err := tagContent.ReadByte()
-						if err != nil {
-							panic(err)
-						}
-						// ^ Read: [auto:byte]
-						tagContent.Next(4)
-						// ^ Skip: [conditionMet:byte]
-						//   Skip: [LPConditionMode:byte]
-						//   Skip: [LPRedstoneMode:byte]
-						//   Skip: [LPCommandMode:byte]
-						cmd, err := readNBTString(tagContent)
-						if err != nil {
-							panic(err)
-						}
-						// ^ Read: [Command:string]
-						_, err = readVarint32(tagContent)
-						if err != nil {
-							panic(err)
-						}
-						// ^ Skip: [Version:VarInt32]
-						_, err = readVarint32(tagContent)
-						if err != nil {
-							panic(err)
-						}
-						// ^ Skip: [SuccessCount:VarInt32]
-						cusname, err := readNBTString(tagContent)
-						if err != nil {
-							panic(err)
-						}
-						// ^ Read: [CustomName:string]
-						lo, err := readNBTString(tagContent)
-						if err != nil {
-							panic(err)
-						}
-						// ^ Read: [LastOutput:string]
-						lop_in, err := readVarint32(tagContent)
-						if err != nil {
-							panic(err)
-						}
-						// ^ PartialRead: **LENGTH OF** [LastOutputParams:list[string]]
-						for i := 0; i < int(lop_in); i++ {
-							_, err = readNBTString(tagContent)
-							if err != nil {
-								panic(err)
-							}
-							// ^ PartialRead: **CONTENT OF** [LastOutputParams:list[string]]
-						}
-						// ^ Skip: [LastOutputParams:list[string]]
-						trackoutput, err := tagContent.ReadByte()
-						if err != nil {
-							panic(err)
-						}
-						// ^ Read: [TrackOutput:byte]
-						_, err = readVarint64(tagContent)
-						if err != nil {
-							panic(err)
-						}
-						// ^ Skip: [LastExecution:VarInt64]
-						tickdelay, err := readVarint32(tagContent)
-						if err != nil {
-							panic(err)
-						}
-						// ^ Read: [TickDelay:VarInt32]
-						exeft, err := tagContent.ReadByte()
-						if err != nil {
-							panic(err)
-						}
-						// ^ Read: [ExecuteOnFirstTick:byte]
-						if tagContent.Len() != 0 {
-							panic("Unterminated command block tag")
-						}
-						conb_bit := static_item["conditional_bit"].(uint8)
-						conb := false
-						if conb_bit == 1 {
-							conb = true
-						}
-						var exeftb bool
-						if exeft == 0 {
-							exeftb = true
-						} else {
-							exeftb = true
-						}
-						var tob bool
-						if trackoutput == 1 {
-							tob = true
-						} else {
-							tob = false
-						}
-						var nrb bool
-						if aut == 1 {
-							nrb = false
-							//REVERSED!!
-						} else {
-							nrb = true
-						}
-						cbdata = &types.CommandBlockData{
-							Mode:               mode,
-							Command:            cmd,
-							CustomName:         cusname,
-							ExecuteOnFirstTick: exeftb,
-							LastOutput:         lo,
-							TickDelay:          tickdelay,
-							TrackOutput:        tob,
-							Conditional:        conb,
-							NeedsRedstone:      nrb,
-						}
-						//fmt.Printf("%#v\n",cbdata)
-					} else {
-						pnd, hasNBT := item["__tag"]
-						if hasNBT {
-							nbtData = []byte(pnd.(string))
+							fmt.Printf("WARNING: Failed to marshal block NBT map %#v; err = %v\n", blockNBTMap, err)
 						}
 					}
 					// it's ok to ignore "found", because it will set lb to air if not found
-					lb, _ := chunk.RuntimeIDToLegacyBlock(runtimeId)
 					blocks[counter] = &types.Module{
 						Block: &types.Block{
-							Name: &lb.Name,
-							Data: uint16(lb.Val),
+							Name:        &blockName,
+							BlockStates: blockStatesString,
 						},
-						CommandBlockData: cbdata,
-						ChestData:        chestData,
-						DebugNBTData:     nbtData,
+						DebugNBTData: tagNBTData,
 						Point: types.Position{
 							X: x,
 							Y: y,
 							Z: z,
 						},
+					}
+					if len(blockNBTBytes) > 0 {
+						blocks[counter].NBTData = blockNBTBytes
 					}
 					counter++
 				}
@@ -363,14 +184,10 @@ func CreateExportTask(commandLine string, env *environment.PBEnvironment) *task.
 			cfg.Path += ".bdx"
 		}
 		env.GameInterface.Output("EXPORT >> Writing output file")
-		err, signerr := out.WriteToFile(cfg.Path, env.FBAuthClient.(*fbauth.Client).LocalCert, env.FBAuthClient.(*fbauth.Client).LocalKey)
+		err = out.WriteToFile(cfg.Path)
 		if err != nil {
 			env.GameInterface.Output(fmt.Sprintf("EXPORT >> ERROR: Failed to export: %v", err))
 			return
-		} else if signerr != nil {
-			env.GameInterface.Output(fmt.Sprintf("EXPORT >> Note: The file is unsigned since the following error was trapped: %v", signerr))
-		} else {
-			env.GameInterface.Output(fmt.Sprintf("EXPORT >> File signed successfully"))
 		}
 		env.GameInterface.Output(fmt.Sprintf("EXPORT >> Successfully exported your structure to %v", cfg.Path))
 		runtime.GC()

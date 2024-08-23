@@ -151,7 +151,7 @@ func EnterWorkerThread(env *environment.PBEnvironment, breaker chan struct{}) {
 	conn := env.Connection.(*minecraft.Conn)
 	functionHolder := env.FunctionHolder.(*function.FunctionHolder)
 
-	chunkAssembler := assembler.NewAssembler(assembler.REQUEST_AGGRESSIVE, time.Second*5)
+	chunkAssembler := assembler.NewAssembler(assembler.REQUEST_LAZY, time.Second*5)
 	// max 100 chunk requests per second
 	chunkAssembler.CreateRequestScheduler(func(pk *packet.SubChunkRequest) {
 		conn.WritePacket(pk)
@@ -222,6 +222,9 @@ func EnterWorkerThread(env *environment.PBEnvironment, breaker chan struct{}) {
 			pk, data = c.Packet, c.Data
 		} else {
 			if pk, data, err = conn.ReadPacketAndBytes(); err != nil {
+				if len(breaker) > 0 {
+					return
+				}
 				panic(err)
 			}
 			if args.ShouldEnableOmegaSystem && !env.OmegaHasBootstrap {
@@ -329,12 +332,14 @@ func EnterWorkerThread(env *environment.PBEnvironment, breaker chan struct{}) {
 }
 
 func InitializeMinecraftConnection(ctx context.Context, authenticator minecraft.Authenticator) (conn *minecraft.Conn, err error) {
+	var dialer minecraft.Dialer
+	// prepare
 	if args.DebugMode {
 		conn = &minecraft.Conn{
 			DebugMode: true,
 		}
 	} else {
-		dialer := minecraft.Dialer{
+		dialer = minecraft.Dialer{
 			Authenticator: authenticator,
 		}
 		conn, err = dialer.DialContext(ctx, "raknet")
@@ -342,19 +347,34 @@ func InitializeMinecraftConnection(ctx context.Context, authenticator minecraft.
 	if err != nil {
 		return
 	}
+	// create connection
+	runtimeid := fmt.Sprintf("%d", conn.GameData().EntityUniqueID)
 	conn.WritePacket(&packet.ClientCacheStatus{
 		Enabled: false,
 	})
-	runtimeid := fmt.Sprintf("%d", conn.GameData().EntityUniqueID)
+	// get constant and send pre-login packet
+	if !args.DebugMode {
+		conn.WritePacket(&packet.NeteaseJson{
+			Data: []byte(
+				fmt.Sprintf(
+					`{"eventName":"LOGIN_UID","resid":"","uid":"%s"}`,
+					dialer.Authenticator.(*fbauth.AccessWrapper).Client.Uid,
+				),
+			),
+		})
+	}
 	conn.WritePacket(&packet.PyRpc{
-		Value: py_rpc.Marshal(&py_rpc.SyncUsingMod{}),
+		Value:         py_rpc.Marshal(&py_rpc.SyncUsingMod{}),
+		OperationType: packet.PyRpcOperationTypeSend,
 	})
 	conn.WritePacket(&packet.PyRpc{
-		Value: py_rpc.Marshal(&py_rpc.SyncVipSkinUUID{nil}),
+		Value:         py_rpc.Marshal(&py_rpc.SyncVipSkinUUID{nil}),
+		OperationType: packet.PyRpcOperationTypeSend,
 	})
 	if !args.SkipMCPCheckChallenges {
 		conn.WritePacket(&packet.PyRpc{
-			Value: py_rpc.Marshal(&py_rpc.ClientLoadAddonsFinishedFromGac{}),
+			Value:         py_rpc.Marshal(&py_rpc.ClientLoadAddonsFinishedFromGac{}),
+			OperationType: packet.PyRpcOperationTypeSend,
 		})
 	}
 	{
@@ -366,10 +386,12 @@ func InitializeMinecraftConnection(ctx context.Context, authenticator minecraft.
 				Package: &park,
 				Type:    py_rpc.ModEventClientToServer,
 			}),
+			OperationType: packet.PyRpcOperationTypeSend,
 		})
 	}
 	conn.WritePacket(&packet.PyRpc{
-		Value: py_rpc.Marshal(&py_rpc.ArenaGamePlayerFinishLoad{}),
+		Value:         py_rpc.Marshal(&py_rpc.ArenaGamePlayerFinishLoad{}),
+		OperationType: packet.PyRpcOperationTypeSend,
 	})
 	{
 		event := cts_mc_v.PlayerUiInit{RuntimeID: runtimeid}
@@ -380,9 +402,12 @@ func InitializeMinecraftConnection(ctx context.Context, authenticator minecraft.
 				Package: &park,
 				Type:    py_rpc.ModEventClientToServer,
 			}),
+			OperationType: packet.PyRpcOperationTypeSend,
 		})
 	}
+	// send netease related packet
 	return
+	// return
 }
 
 func EstablishConnectionAndInitEnv(env *environment.PBEnvironment) {
@@ -470,7 +495,7 @@ func EstablishConnectionAndInitEnv(env *environment.PBEnvironment) {
 
 func SolveMCPCheckChallenges(env *environment.PBEnvironment) {
 	if args.SkipMCPCheckChallenges {
-		env.CachedPacket = (<-chan packet.Packet)(make(chan packet.Packet))
+		env.CachedPacket = (<-chan CachedPacket)(make(chan CachedPacket))
 		return
 	}
 	// check
@@ -531,14 +556,19 @@ func WaitMCPCheckChallengesDown(
 	defer ticker.Stop()
 	for {
 		err := env.Connection.(*minecraft.Conn).WritePacket(&packet.CommandRequest{
-			CommandLine: "WaitMCPCheckChallengesDown",
+			CommandLine: "list",
 			CommandOrigin: protocol.CommandOrigin{
 				Origin:    protocol.CommandOriginAutomationPlayer,
 				UUID:      ResourcesControl.GenerateUUID(),
 				RequestID: GameInterface.DefaultCommandRequestID,
 			},
-			Internal:  false,
+			Internal: false,
+			// PhoenixBuilder specific changes.
+			// Author: LNSSPsd
 			UnLimited: false,
+			// PhoenixBuilder specific changes.
+			// Author: Liliya233
+			Version: 0x23,
 		})
 		if err != nil {
 			panic(fmt.Sprintf("WaitMCPCheckChallengesDown: %v", err))
@@ -554,9 +584,6 @@ func WaitMCPCheckChallengesDown(
 
 func onPyRpc(p *packet.PyRpc, env *environment.PBEnvironment) {
 	conn := env.Connection.(*minecraft.Conn)
-	if p.Error != nil {
-		panic(fmt.Sprintf("onPyRpc: %v", p.Error))
-	}
 	if p.Value == nil {
 		return
 	}
@@ -574,7 +601,10 @@ func onPyRpc(p *packet.PyRpc, env *environment.PBEnvironment) {
 	switch c := content.(type) {
 	case *py_rpc.HeartBeat:
 		c.Type = py_rpc.ClientToServerHeartBeat
-		conn.WritePacket(&packet.PyRpc{Value: py_rpc.Marshal(c)})
+		conn.WritePacket(&packet.PyRpc{
+			Value:         py_rpc.Marshal(c),
+			OperationType: packet.PyRpcOperationTypeSend,
+		})
 		// heart beat to test the device is still alive?
 		// it seems that we just need to return it back to the server is OK
 	case *py_rpc.StartType:
@@ -585,7 +615,10 @@ func onPyRpc(p *packet.PyRpc, env *environment.PBEnvironment) {
 		client := env.FBAuthClient.(*fbauth.Client)
 		c.Content = client.TransferData(c.Content)
 		c.Type = py_rpc.StartTypeResponse
-		conn.WritePacket(&packet.PyRpc{Value: py_rpc.Marshal(c)})
+		conn.WritePacket(&packet.PyRpc{
+			Value:         py_rpc.Marshal(c),
+			OperationType: packet.PyRpcOperationTypeSend,
+		})
 		// get data and send packet
 	case *py_rpc.GetMCPCheckNum:
 		if args.SkipMCPCheckChallenges || env.GetCheckNumEverPassed {
@@ -612,7 +645,8 @@ func onPyRpc(p *packet.PyRpc, env *environment.PBEnvironment) {
 		}
 		// unmarshal response and adjust the data included
 		conn.WritePacket(&packet.PyRpc{
-			Value: py_rpc.Marshal(&py_rpc.SetMCPCheckNum{ret_p}),
+			Value:         py_rpc.Marshal(&py_rpc.SetMCPCheckNum{ret_p}),
+			OperationType: packet.PyRpcOperationTypeSend,
 		})
 		env.GetCheckNumEverPassed = true
 		// send packet and mark this challenges was finished

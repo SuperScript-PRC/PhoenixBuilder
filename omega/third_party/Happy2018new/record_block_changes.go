@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"phoenixbuilder/fastbuilder/mcstructure"
 	"phoenixbuilder/minecraft/protocol/packet"
-	"phoenixbuilder/mirror/chunk"
+	"phoenixbuilder/mirror/blocks"
 	"phoenixbuilder/omega/defines"
 	Happy2018new_depends "phoenixbuilder/omega/third_party/Happy2018new/depends"
 	"strings"
@@ -74,14 +74,14 @@ func (o *RecordBlockChanges) RequestBlockChangesInfo(BlockInfo packet.UpdateBloc
 	}
 	// parse block nbt to string nbt
 	if BlockInfo.Flags != 32768 {
-		singleBlock, found := chunk.RuntimeIDToBlock(chunk.NEMCRuntimeIDToStandardRuntimeID(BlockInfo.NewBlockRuntimeID))
+		singleBlock, found := blocks.RuntimeIDToBlock(BlockInfo.NewBlockRuntimeID)
 		if found {
-			blockName_Result = singleBlock.Name
+			blockName_Result = singleBlock.LongName()
 		} else {
 			blockName_Result = "unknown"
 		}
 		// get block name
-		blockStates_Result, err = mcstructure.MarshalBlockStates(singleBlock.Properties)
+		blockStates_Result, err = mcstructure.MarshalBlockStates(singleBlock.States().ToNBT())
 		if err != nil {
 			blockStates_Result = "undefined"
 		}

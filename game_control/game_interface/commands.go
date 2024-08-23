@@ -35,7 +35,7 @@ func (g *GameInterface) SendSettingsCommand(
 	// for restrictive situation
 	if dimensional {
 		command = fmt.Sprintf(
-			`execute @a[name="%s"] ~ ~ ~ %s`,
+			`execute as @a[name="%s"] at @s run %s`,
 			g.ClientInfo.DisplayName,
 			command,
 		)
@@ -74,8 +74,13 @@ func (g *GameInterface) send_command(
 			Origin: origin,
 			UUID:   uniqueId,
 		},
-		Internal:  false,
+		Internal: false,
+		// PhoenixBuilder specific changes.
+		// Author: LNSSPsd
 		UnLimited: false,
+		// PhoenixBuilder specific changes.
+		// Author: Liliya233
+		Version: 0x23,
 	}
 	if origin == protocol.CommandOriginAutomationPlayer {
 		pkt.CommandOrigin.RequestID = DefaultCommandRequestID
@@ -109,6 +114,7 @@ func (g *GameInterface) send_netease_ai_command(
 			Package: &park,
 			Type:    py_rpc.ModEventClientToServer,
 		}),
+		OperationType: packet.PyRpcOperationTypeSend,
 	})
 	if err != nil {
 		return fmt.Errorf("send_netease_ai_command: %v", err)
@@ -381,7 +387,8 @@ func (i *GameInterface) SendChat(content string) error {
 		SourceName:       i.ClientInfo.DisplayName,
 		Message:          content,
 		XUID:             i.ClientInfo.XUID,
-		PlayerRuntimeID:  fmt.Sprintf("%d", i.ClientInfo.EntityUniqueID),
+		PlatformChatID:   "",
+		NeteaseExtraData: []string{"PlayerId", fmt.Sprintf("%d", i.ClientInfo.EntityRuntimeID)},
 	})
 }
 

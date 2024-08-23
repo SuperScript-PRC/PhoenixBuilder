@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"phoenixbuilder/mirror"
-	"phoenixbuilder/mirror/chunk"
+	"phoenixbuilder/mirror/blocks"
 	"phoenixbuilder/mirror/define"
 	"phoenixbuilder/omega/defines"
 	"phoenixbuilder/omega/utils"
@@ -33,8 +33,9 @@ func (o *RemoveBlock) Init(cfg *defines.ComponentConfig, storage defines.Storage
 	for RegString, complex := range o.BlocksToRemove {
 		complex.targetRTID = make([]uint32, 0)
 		reg := regexp.MustCompile(RegString)
-		for rtid, block := range chunk.Blocks {
-			if reg.Find([]byte(block.Name)) != nil {
+		for _, block := range blocks.MC_CURRENT.ListAllBlockSets() {
+			rtid := block.Rtid()
+			if reg.Find([]byte(block.ShortName())) != nil {
 				fmt.Printf("%v => %v\n", RegString, rtid)
 				complex.targetRTID = append(complex.targetRTID, uint32(rtid))
 				o.fastFilter[uint32(rtid)] = complex
@@ -46,7 +47,7 @@ func (o *RemoveBlock) Init(cfg *defines.ComponentConfig, storage defines.Storage
 	}
 }
 
-//TODO Check if remove block is affected by 0 -> -64
+// TODO Check if remove block is affected by 0 -> -64
 func (o *RemoveBlock) onLevelChunk(cd *mirror.ChunkData) {
 	// fmt.Println("chunk arrive!")
 	for sub_i, sub := range cd.Chunk.Sub() {

@@ -22,6 +22,19 @@ type MapTrackedObject struct {
 	BlockPosition BlockPos
 }
 
+// Marshal encodes/decodes a MapTrackedObject.
+func (x *MapTrackedObject) Marshal(r IO) {
+	r.Int32(&x.Type)
+	switch x.Type {
+	case MapObjectTypeEntity:
+		r.Varint64(&x.EntityUniqueID)
+	case MapObjectTypeBlock:
+		r.UBlockPos(&x.BlockPosition)
+	default:
+		r.UnknownEnumOption(x.Type, "map tracked object type")
+	}
+}
+
 // MapDecoration is a fixed decoration on a map: Its position or other properties do not change automatically
 // client-side.
 type MapDecoration struct {
@@ -42,25 +55,50 @@ type MapDecoration struct {
 	Colour color.RGBA
 }
 
-// MapTrackedObj reads/writes a MapTrackedObject x using IO r.
-func MapTrackedObj(r IO, x *MapTrackedObject) {
-	r.Int32(&x.Type)
-	switch x.Type {
-	case MapObjectTypeEntity:
-		r.Varint64(&x.EntityUniqueID)
-	case MapObjectTypeBlock:
-		r.UBlockPos(&x.BlockPosition)
-	default:
-		r.UnknownEnumOption(x.Type, "map tracked object type")
-	}
-}
-
-// MapDeco reads/writes a MapDecoration x using IO r.
-func MapDeco(r IO, x *MapDecoration) {
+// Marshal encodes/decodes a MapDecoration.
+func (x *MapDecoration) Marshal(r IO) {
 	r.Uint8(&x.Type)
 	r.Uint8(&x.Rotation)
 	r.Uint8(&x.X)
 	r.Uint8(&x.Y)
 	r.String(&x.Label)
 	r.VarRGBA(&x.Colour)
+}
+
+// PixelRequest is the request for the colour of a pixel in a MapInfoRequest packet.
+type PixelRequest struct {
+	Colour color.RGBA
+	Index  uint16
+}
+
+// Marshal encodes/decodes a PixelRequest.
+func (x *PixelRequest) Marshal(r IO) {
+	r.RGBA(&x.Colour)
+	r.Uint16(&x.Index)
+}
+
+// PhoenixBuilder specific func.
+// Author: Happy2018new, Liliya233
+/*
+MapPixels 携带了地图画中的像素集。
+
+该字段是数据包传输协议中的可选类型，
+当 IsEmpty 为真时，则仅写入 true。
+否则，写入 false 和 Data 字段
+*/
+type MapPixels struct {
+	IsEmpty bool          // 描述 MapPixels 是否为空
+	Data    MapPixelsData // 地图画上的像素集
+}
+
+// PhoenixBuilder specific func.
+// Author: Happy2018new, Liliya233
+//
+// ...
+func (x *MapPixels) Marshal(r IO) {
+	r.Bool(&x.IsEmpty)
+	if !x.IsEmpty {
+		r.MapPixelsDataType(&x.Data)
+		x.Data.Marshal(r)
+	}
 }

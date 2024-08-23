@@ -12,6 +12,13 @@ import (
 
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/google/uuid"
+
+	// PhoenixBuilder specific changes.
+	// Changes Maker: Liliya233
+	// Committed by Happy2018new.
+	//
+	// A Python library which named "msgpack"
+	"github.com/ugorji/go/codec"
 )
 
 // Writer implements writing methods for data types from Minecraft packets. Each Packet implementation has one
@@ -121,18 +128,45 @@ func (w *Writer) SubChunkPos(x *SubChunkPos) {
 	w.Varint32(&x[2])
 }
 
+// PhoenixBuilder specific func.
+// Changes Maker: Liliya233
+// Committed by Happy2018new.
+//
+// Netease
+func (w *Writer) USubChunkPos(x *SubChunkPos) {
+	y := uint32(x[1])
+	// convert data
+	w.Varint32(&x[0])
+	w.Varuint32(&y)
+	w.Varint32(&x[2])
+	// write data
+}
+
+// SoundPos writes an mgl32.Vec3 that serves as a position for a sound.
+func (w *Writer) SoundPos(x *mgl32.Vec3) {
+	b := BlockPos{int32((*x)[0] * 8), int32((*x)[1] * 8), int32((*x)[2] * 8)}
+	w.BlockPos(&b)
+}
+
+// PhoenixBuilder specific func.
+// Author: Liliya233
+//
+// Netease
+func (w *Writer) USoundPos(x *mgl32.Vec3) {
+	b := BlockPos{int32((*x)[0] * 8), int32((*x)[1] * 8), int32((*x)[2] * 8)}
+	w.UBlockPos(&b)
+}
+
+// RGBA writes a color.RGBA x as a uint32 to the underlying buffer.
+func (w *Writer) RGBA(x *color.RGBA) {
+	val := uint32(x.R) | uint32(x.G)<<8 | uint32(x.B)<<16 | uint32(x.A)<<24
+	w.Uint32(&val)
+}
+
 // VarRGBA writes a color.RGBA x as a varuint32 to the underlying buffer.
 func (w *Writer) VarRGBA(x *color.RGBA) {
 	val := uint32(x.R) | uint32(x.G)<<8 | uint32(x.B)<<16 | uint32(x.A)<<24
 	w.Varuint32(&val)
-}
-
-// NeteaseRGBA writes a color.RGBA x as four bytes to the underlying buffer.
-func (w *Writer) NeteaseRGBA(x *color.RGBA) {
-	w.Uint8(&x.R)
-	w.Uint8(&x.G)
-	w.Uint8(&x.B)
-	w.Uint8(&x.A)
 }
 
 // UUID writes a UUID to the underlying buffer.
@@ -148,19 +182,9 @@ func (w *Writer) UUID(x *uuid.UUID) {
 func (w *Writer) PlayerInventoryAction(x *UseItemTransactionData) {
 	w.Varint32(&x.LegacyRequestID)
 	if x.LegacyRequestID < -1 && (x.LegacyRequestID&1) == 0 {
-		l := uint32(len(x.LegacySetItemSlots))
-		w.Varuint32(&l)
-
-		for _, slot := range x.LegacySetItemSlots {
-			SetItemSlot(w, &slot)
-		}
+		Slice(w, &x.LegacySetItemSlots)
 	}
-	l := uint32(len(x.Actions))
-	w.Varuint32(&l)
-
-	for _, a := range x.Actions {
-		InvAction(w, &a)
-	}
+	Slice(w, &x.Actions)
 	w.Varuint32(&x.ActionType)
 	w.BlockPos(&x.BlockPosition)
 	w.Varint32(&x.BlockFace)
@@ -169,6 +193,29 @@ func (w *Writer) PlayerInventoryAction(x *UseItemTransactionData) {
 	w.Vec3(&x.Position)
 	w.Vec3(&x.ClickedPosition)
 	w.Varuint32(&x.BlockRuntimeID)
+}
+
+// GameRule writes a GameRule x to the Writer.
+func (w *Writer) GameRule(x *GameRule) {
+	w.String(&x.Name)
+	w.Bool(&x.CanBeModifiedByPlayer)
+
+	switch v := x.Value.(type) {
+	case bool:
+		id := uint32(1)
+		w.Varuint32(&id)
+		w.Bool(&v)
+	case uint32:
+		id := uint32(2)
+		w.Varuint32(&id)
+		w.Varuint32(&v)
+	case float32:
+		id := uint32(3)
+		w.Varuint32(&id)
+		w.Float32(&v)
+	default:
+		w.UnknownEnumOption(fmt.Sprintf("%T", v), "game rule type")
+	}
 }
 
 // EntityMetadata writes an entity metadata map x to the underlying buffer.
@@ -191,31 +238,40 @@ func (w *Writer) EntityMetadata(x *map[uint32]any) {
 		w.Varuint32(&key)
 		switch v := value.(type) {
 		case byte:
-			w.Varuint32(&entityDataByte)
+			entityDataTypeByte := EntityDataTypeByte
+			w.Varuint32(&entityDataTypeByte)
 			w.Uint8(&v)
 		case int16:
-			w.Varuint32(&entityDataInt16)
+			entityDataTypeInt16 := EntityDataTypeInt16
+			w.Varuint32(&entityDataTypeInt16)
 			w.Int16(&v)
 		case int32:
-			w.Varuint32(&entityDataInt32)
+			entityDataTypeInt32 := EntityDataTypeInt32
+			w.Varuint32(&entityDataTypeInt32)
 			w.Varint32(&v)
 		case float32:
-			w.Varuint32(&entityDataFloat32)
+			entityDataTypeFloat32 := EntityDataTypeFloat32
+			w.Varuint32(&entityDataTypeFloat32)
 			w.Float32(&v)
 		case string:
-			w.Varuint32(&entityDataString)
+			entityDataTypeString := EntityDataTypeString
+			w.Varuint32(&entityDataTypeString)
 			w.String(&v)
 		case map[string]any:
-			w.Varuint32(&entityDataCompoundTag)
+			entityDataTypeCompoundTag := EntityDataTypeCompoundTag
+			w.Varuint32(&entityDataTypeCompoundTag)
 			w.NBT(&v, nbt.NetworkLittleEndian)
 		case BlockPos:
-			w.Varuint32(&entityDataBlockPos)
+			entityDataTypeBlockPos := EntityDataTypeBlockPos
+			w.Varuint32(&entityDataTypeBlockPos)
 			w.BlockPos(&v)
 		case int64:
-			w.Varuint32(&entityDataInt64)
+			entityDataTypeInt64 := EntityDataTypeInt64
+			w.Varuint32(&entityDataTypeInt64)
 			w.Varint64(&v)
 		case mgl32.Vec3:
-			w.Varuint32(&entityDataVec3)
+			entityDataTypeVec3 := EntityDataTypeVec3
+			w.Varuint32(&entityDataTypeVec3)
 			w.Vec3(&v)
 		default:
 			w.UnknownEnumOption(reflect.TypeOf(value), "entity metadata")
@@ -223,7 +279,33 @@ func (w *Writer) EntityMetadata(x *map[uint32]any) {
 	}
 }
 
-// ItemInstance writes an ItemInstance x to the underlying buffer.
+// ItemDescriptorCount writes an ItemDescriptorCount i to the underlying buffer.
+func (w *Writer) ItemDescriptorCount(i *ItemDescriptorCount) {
+	var id byte
+	switch i.Descriptor.(type) {
+	case *InvalidItemDescriptor:
+		id = ItemDescriptorInvalid
+	case *DefaultItemDescriptor:
+		id = ItemDescriptorDefault
+	case *MoLangItemDescriptor:
+		id = ItemDescriptorMoLang
+	case *ItemTagItemDescriptor:
+		id = ItemDescriptorItemTag
+	case *DeferredItemDescriptor:
+		id = ItemDescriptorDeferred
+	case *ComplexAliasItemDescriptor:
+		id = ItemDescriptorComplexAlias
+	default:
+		w.UnknownEnumOption(fmt.Sprintf("%T", i.Descriptor), "item descriptor type")
+		return
+	}
+	w.Uint8(&id)
+
+	i.Descriptor.Marshal(w)
+	w.Varint32(&i.Count)
+}
+
+// ItemInstance writes an ItemInstance i to the underlying buffer.
 func (w *Writer) ItemInstance(i *ItemInstance) {
 	x := &i.Stack
 	w.Varint32(&x.NetworkID)
@@ -259,17 +341,9 @@ func (w *Writer) ItemInstance(i *ItemInstance) {
 		bufWriter.Int16(&length)
 	}
 
-	placeOnLen := int32(len(x.CanBePlacedOn))
-	canBreak := int32(len(x.CanBreak))
+	FuncSliceUint32Length(bufWriter, &x.CanBePlacedOn, bufWriter.StringUTF)
+	FuncSliceUint32Length(bufWriter, &x.CanBreak, bufWriter.StringUTF)
 
-	bufWriter.Int32(&placeOnLen)
-	for _, block := range x.CanBePlacedOn {
-		bufWriter.StringUTF(&block)
-	}
-	bufWriter.Int32(&canBreak)
-	for _, block := range x.CanBreak {
-		bufWriter.StringUTF(&block)
-	}
 	if x.NetworkID == bufWriter.shieldID {
 		var blockingTick int64
 		bufWriter.Int64(&blockingTick)
@@ -307,17 +381,9 @@ func (w *Writer) Item(x *ItemStack) {
 		bufWriter.Int16(&length)
 	}
 
-	placeOnLen := int32(len(x.CanBePlacedOn))
-	canBreak := int32(len(x.CanBreak))
+	FuncSliceUint32Length(bufWriter, &x.CanBePlacedOn, bufWriter.StringUTF)
+	FuncSliceUint32Length(bufWriter, &x.CanBreak, bufWriter.StringUTF)
 
-	bufWriter.Int32(&placeOnLen)
-	for _, block := range x.CanBePlacedOn {
-		bufWriter.StringUTF(&block)
-	}
-	bufWriter.Int32(&canBreak)
-	for _, block := range x.CanBreak {
-		bufWriter.StringUTF(&block)
-	}
 	if x.NetworkID == bufWriter.shieldID {
 		var blockingTick int64
 		bufWriter.Int64(&blockingTick)
@@ -327,18 +393,126 @@ func (w *Writer) Item(x *ItemStack) {
 	w.ByteSlice(&extraData)
 }
 
+// StackRequestAction writes a StackRequestAction to the writer.
+func (w *Writer) StackRequestAction(x *StackRequestAction) {
+	var id byte
+	if !lookupStackRequestActionType(*x, &id) {
+		w.UnknownEnumOption(fmt.Sprintf("%T", *x), "stack request action type")
+	}
+	w.Uint8(&id)
+	(*x).Marshal(w)
+}
+
 // MaterialReducer writes a material reducer to the writer.
 func (w *Writer) MaterialReducer(m *MaterialReducer) {
 	mix := (m.InputItem.NetworkID << 16) | int32(m.InputItem.MetadataValue)
-	itemCountsLen := uint32(len(m.Outputs))
-
 	w.Varint32(&mix)
-	w.Varuint32(&itemCountsLen)
+	Slice(w, &m.Outputs)
+}
 
-	for _, out := range m.Outputs {
-		w.Varint32(&out.NetworkID)
-		w.Varint32(&out.Count)
+// Recipe writes a Recipe to the writer.
+func (w *Writer) Recipe(x *Recipe) {
+	var recipeType int32
+	if !lookupRecipeType(*x, &recipeType) {
+		w.UnknownEnumOption(fmt.Sprintf("%T", *x), "crafting recipe type")
 	}
+	w.Varint32(&recipeType)
+	(*x).Marshal(w)
+}
+
+// EventType writes an Event to the writer.
+func (w *Writer) EventType(x *Event) {
+	var t int32
+	if !lookupEventType(*x, &t) {
+		w.UnknownEnumOption(fmt.Sprintf("%T", x), "event packet event type")
+	}
+	w.Varint32(&t)
+}
+
+// TransactionDataType writes an InventoryTransactionData type to the writer.
+func (w *Writer) TransactionDataType(x *InventoryTransactionData) {
+	var id uint32
+	if !lookupTransactionDataType(*x, &id) {
+		w.UnknownEnumOption(fmt.Sprintf("%T", x), "inventory transaction data type")
+	}
+	w.Varuint32(&id)
+}
+
+// PhoenixBuilder specific func.
+// Author: Happy2018new
+//
+// MapPixelsDataType writes an MapPixelsData type to the writer.
+func (w *Writer) MapPixelsDataType(x *MapPixelsData) {
+	var id uint8
+	if !lookupMapPixelsType(*x, &id) {
+		w.UnknownEnumOption(fmt.Sprintf("%T", x), "map pixels data type")
+	}
+	w.Uint8(&id)
+}
+
+// AbilityValue writes an ability value to the writer.
+func (w *Writer) AbilityValue(x *any) {
+	switch val := (*x).(type) {
+	case bool:
+		valType, defaultVal := uint8(1), float32(0)
+		w.Uint8(&valType)
+		w.Bool(&val)
+		w.Float32(&defaultVal)
+	case float32:
+		valType, defaultVal := uint8(2), false
+		w.Uint8(&valType)
+		w.Bool(&defaultVal)
+		w.Float32(&val)
+	default:
+		w.InvalidValue(*x, "ability value type", "must be bool or float32")
+	}
+}
+
+// CompressedBiomeDefinitions reads a list of compressed biome definitions from the reader. Minecraft decided to make their
+// own type of compression for this, so we have to implement it ourselves. It uses a dictionary of repeated byte sequences
+// to reduce the size of the data. The compressed data is read byte-by-byte, and if the byte is 0xff then it is assumed
+// that the next two bytes are an int16 for the dictionary index. Otherwise, the byte is copied to the output. The dictionary
+// index is then used to look up the byte sequence to be appended to the output.
+func (w *Writer) CompressedBiomeDefinitions(x *map[string]any) {
+	decompressed, err := nbt.Marshal(x)
+	if err != nil {
+		w.panicf("error marshaling nbt: %v", err)
+	}
+
+	var compressed []byte
+	buf := bytes.NewBuffer(compressed)
+	bufWriter := NewWriter(buf, w.shieldID)
+
+	header := []byte("COMPRESSED")
+	bufWriter.Bytes(&header)
+
+	// TODO: Dictionary compression implementation
+	var dictionaryLength uint16
+	bufWriter.Uint16(&dictionaryLength)
+	for _, b := range decompressed {
+		bufWriter.Uint8(&b)
+		if b == 0xff {
+			dictionaryIndex := int16(1)
+			bufWriter.Int16(&dictionaryIndex)
+		}
+	}
+
+	compressed = buf.Bytes()
+	length := uint32(len(compressed))
+	w.Varuint32(&length)
+	w.Bytes(&compressed)
+}
+
+// PhoenixBuilder specific func.
+// Author: Liliya233, CMA2041PT, Happy2018new
+//
+// Netease's Python MsgPack
+func (w *Writer) MsgPack(x *any) {
+	var msgPackBytes []byte
+	if err := codec.NewEncoderBytes(&msgPackBytes, &codec.MsgpackHandle{}).Encode(x); err != nil {
+		panic(fmt.Sprintf("(w *Writer) MsgPack: %v", err))
+	}
+	w.ByteSlice(&msgPackBytes)
 }
 
 // Varint64 writes an int64 as 1-10 bytes to the underlying buffer.
@@ -389,6 +563,36 @@ func (w *Writer) Varuint32(x *uint32) {
 	_ = w.w.WriteByte(byte(u))
 }
 
+// PhoenixBuilder specific func.
+// Author: Happy2018new, Liliya233
+//
+// Varint16 writes an int16 as 1-2 bytes to the underlying buffer.
+func (w *Writer) Varint16(x *int16) {
+	u := *x
+	ux := uint16(u) << 1
+	if u < 0 {
+		ux = ^ux
+	}
+	for ux >= 0x80 {
+		_ = w.w.WriteByte(byte(ux) | 0x80)
+		ux >>= 7
+	}
+	_ = w.w.WriteByte(byte(ux))
+}
+
+// PhoenixBuilder specific func.
+// Author: Happy2018new, Liliya233
+//
+// Varuint16 writes a uint16 as 1-2 bytes to the underlying buffer.
+func (w *Writer) Varuint16(x *uint16) {
+	u := *x
+	for u >= 0x80 {
+		_ = w.w.WriteByte(byte(u) | 0x80)
+		u >>= 7
+	}
+	_ = w.w.WriteByte(byte(u))
+}
+
 // NBT writes a map as NBT to the underlying buffer using the encoding passed.
 func (w *Writer) NBT(x *map[string]any, encoding nbt.Encoding) {
 	if err := nbt.NewEncoderWithEncoding(w.w, encoding).Encode(*x); err != nil {
@@ -396,11 +600,78 @@ func (w *Writer) NBT(x *map[string]any, encoding nbt.Encoding) {
 	}
 }
 
+// PhoenixBuilder specific func.
+// Author: Happy2018new, Liliya233
+//
+// NBT writes a map as NBT with its length to the underlying buffer using the encoding passed.
+// We used NetworkLittleEndian as the marshal protocol.
+func (w *Writer) NBTWithLength(x *map[string]any) {
+	var length uint32
+	if x == nil || len(*x) == 0 {
+		w.Varuint32(&length)
+		return
+	}
+
+	buffer := bytes.NewBuffer([]byte{})
+	if err := nbt.NewEncoderWithEncoding(buffer, nbt.NetworkLittleEndian).Encode(*x); err != nil {
+		panic(err)
+	}
+	nbtBytes := buffer.Bytes()
+	length = uint32(len(nbtBytes))
+
+	w.Varuint32(&length)
+	w.w.Write(nbtBytes)
+}
+
 // NBTList writes a slice as NBT to the underlying buffer using the encoding passed.
 func (w *Writer) NBTList(x *[]any, encoding nbt.Encoding) {
 	if err := nbt.NewEncoderWithEncoding(w.w, encoding).Encode(*x); err != nil {
 		panic(err)
 	}
+}
+
+// PhoenixBuilder specific func.
+// Author: Happy2018new, Liliya233
+//
+// EnchantList writes a slice of Enchant to the underlying buffer.
+func (w *Writer) EnchantList(x *[]Enchant) {
+	var bufferLength uint16
+
+	if x == nil || len(*x) == 0 {
+		w.Varuint16(&bufferLength)
+		return
+	}
+
+	buffer := bytes.NewBuffer([]byte{})
+	SliceVarint16Length(NewWriter(buffer, 0), x)
+
+	bufferLength = uint16(buffer.Len())
+	w.Varuint16(&bufferLength)
+	w.w.Write(buffer.Bytes())
+}
+
+// PhoenixBuilder specific func.
+// Author: Happy2018new, Liliya233
+//
+// ItemList writes a slice of ItemWithSlot to the underlying buffer.
+func (w *Writer) ItemList(x *[]ItemWithSlot) {
+	var length uint32
+	if x == nil || len(*x) == 0 {
+		w.Varuint32(&length)
+		return
+	}
+
+	buffer := bytes.NewBuffer([]byte{})
+	SliceOfLen(NewWriter(buffer, 0), uint32(len(*x)), x)
+
+	length = uint32(buffer.Len())
+	w.Varuint32(&length)
+	w.w.Write(buffer.Bytes())
+}
+
+// ShieldID returns the shield ID provided to the writer.
+func (w *Writer) ShieldID() int32 {
+	return w.shieldID
 }
 
 // UnknownEnumOption panics with an unknown enum option error.

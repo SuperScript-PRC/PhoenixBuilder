@@ -1,5 +1,10 @@
 package woodaxe
 
+/*
+Deprecated this because we don't have block runtime id to Java block table.
+
+
+
 import (
 	"encoding/json"
 	"fmt"
@@ -651,3 +656,4 @@ func (o *WoodAxe) Activate() {
 	// 	}
 	// }()
 }
+*/

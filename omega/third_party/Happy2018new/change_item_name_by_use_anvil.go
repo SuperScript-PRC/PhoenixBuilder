@@ -206,7 +206,7 @@ func (o *ChangeItemNameByUseAnvil) ChangeItemName(chat *defines.GameChat) {
 			pterm.Error.Printf("修改物品名称: resp = %#v\n", resp)
 			return
 		}
-		// 从结构中提取命令方块数据
+		// 从结构中提取目标方块的原始 NBT 数据
 		newBuffer := bytes.NewBuffer(processedData[0].NBTData)
 		var commandBlockNBT map[string]interface{}
 		err = nbt.NewDecoderWithEncoding(newBuffer, nbt.LittleEndian).Decode(&commandBlockNBT)
@@ -215,12 +215,20 @@ func (o *ChangeItemNameByUseAnvil) ChangeItemName(chat *defines.GameChat) {
 			pterm.Error.Printf("修改物品名称: processedData[0].NBTData = %#v\n", processedData[0].NBTData)
 			return
 		}
+		// 解码目标方块的 NBT 数据
 		_, ok := commandBlockNBT["Command"]
 		if !ok {
 			o.Frame.GetGameControl().SayTo(chat.Name, "§c目标方块不是命令方块")
 			return
 		}
+		// 确定得到的方块是命令方块
 		itemName, _ = commandBlockNBT["Command"].(string)
+		err = json.Unmarshal([]byte(fmt.Sprintf(`"%s"`, itemName)), &itemName)
+		if err != nil {
+			o.Frame.GetGameControl().SayTo(chat.Name, fmt.Sprintf("§c命令方块包含的字符串无效\n错误信息为 §f%v", err))
+			return
+		}
+		// 取得物品新名称，并进行反转义
 	}
 	// 获取物品的新名称
 	itemDatas, err := o.apis.Resources.Inventory.GetItemStackInfo(0, targetSlot)
@@ -259,7 +267,7 @@ func (o *ChangeItemNameByUseAnvil) ChangeItemName(chat *defines.GameChat) {
 	}
 	// 取得请求者当前的坐标
 	err = o.apis.SendSettingsCommand(
-		fmt.Sprintf(`execute @a[name=%#v] ~ ~ ~ tp @a[name=%#v] %d %d %d`, chat.Name, o.apis.ClientInfo.DisplayName, pos[0], pos[1], pos[2]),
+		fmt.Sprintf(`execute as @a[name=%#v] at @s run tp @a[name=%#v] %d %d %d`, chat.Name, o.apis.ClientInfo.DisplayName, pos[0], pos[1], pos[2]),
 		false,
 	)
 	if err != nil {
@@ -277,7 +285,7 @@ func (o *ChangeItemNameByUseAnvil) ChangeItemName(chat *defines.GameChat) {
 	// 将机器人传送到玩家处
 	resp, err := o.apis.RenameItemByAnvil(
 		pos,
-		`["direction": 0, "damage": "undamaged"]`,
+		`["direction"=0,"damage"="undamaged"]`,
 		targetSlot,
 		[]GameInterface.ItemRenamingRequest{
 			{
@@ -313,7 +321,7 @@ func (o *ChangeItemNameByUseAnvil) ChangeItemName(chat *defines.GameChat) {
 	}
 	// 读取新物品的数据
 	err = o.apis.SendSettingsCommand(
-		fmt.Sprintf(`execute @a[name=%#v] ~ ~ ~ tp @a[name=%#v] %d %d %d`, chat.Name, o.apis.ClientInfo.DisplayName, pos[0], pos[1], pos[2]),
+		fmt.Sprintf(`execute as @a[name=%#v] at @s run tp @a[name=%#v] %d %d %d`, chat.Name, o.apis.ClientInfo.DisplayName, pos[0], pos[1], pos[2]),
 		false,
 	)
 	if err != nil {

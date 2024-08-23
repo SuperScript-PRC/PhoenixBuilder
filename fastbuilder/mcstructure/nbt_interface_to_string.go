@@ -56,10 +56,26 @@ func stringifyNBTInterface(input interface{}) (string, error) {
 		return fmt.Sprintf("%#v", input.(string)), nil
 		// string
 	case reflect.Slice:
-		value := input.([]interface{})
-		list, err := ConvertListToString(value)
+		var new []any = []any{}
+		switch value := input.(type) {
+		case []int16:
+			for _, v := range value {
+				new = append(new, v)
+			}
+		case []int32:
+			for _, v := range value {
+				new = append(new, v)
+			}
+		case []int64:
+			for _, v := range value {
+				new = append(new, v)
+			}
+		case []any:
+			new = append(new, value...)
+		}
+		list, err := ConvertListToString(new)
 		if err != nil {
-			return "", fmt.Errorf("stringifyNBTInterface: Failed in %#v", value)
+			return "", fmt.Errorf("stringifyNBTInterface: Failed in %#v", new)
 		}
 		return list, nil
 		// list

@@ -295,7 +295,7 @@ func (r *Reactor) React(cbPacket *defines.CombinedPacket) {
 		// TODO remove this line after runtime id mapping update
 		// fmt.Println(p.Position, " -> ", p.NewBlockRuntimeID)
 		// return
-		MCRTID := chunk.NEMCRuntimeIDToStandardRuntimeID(p.NewBlockRuntimeID)
+		MCRTID := p.NewBlockRuntimeID
 		p.Flags &= 0xf
 		if (p.Flags != packet.BlockUpdateNetwork && p.Flags != (packet.BlockUpdateNetwork|packet.BlockUpdateNeighbours)) || p.Layer != 0 {
 			// fmt.Println(p, chunk.RuntimeIDToLegacyBlock(MCRTID))

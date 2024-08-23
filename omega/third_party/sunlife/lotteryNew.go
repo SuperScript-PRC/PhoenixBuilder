@@ -79,7 +79,7 @@ func (b *NewLottery) Init(cfg *defines.ComponentConfig, storage defines.StorageA
 				"结尾数字": 10,
 				"类型":   "大保底奖品",
 				"抽中执行指令": []string{
-					"execute @a[name=\"[player]\"] ~~~ structure load [奖品结构名字] ~~~",
+					"execute as @a[name=\"[player]\"] at as run structure load [奖品结构名字] ~~~",
 					"title @a[name=\"[player]\"] title 抽中了 [奖品名字]",
 				},
 			},
@@ -89,7 +89,7 @@ func (b *NewLottery) Init(cfg *defines.ComponentConfig, storage defines.StorageA
 				"结尾数字": 80,
 				"类型":   "普通奖品",
 				"抽中执行指令": []string{
-					"execute @a[name=\"[player]\"] ~~~ structure load [奖品结构名字] ~~~",
+					"execute as @a[name=\"[player]\"] at @s run structure load [奖品结构名字] ~~~",
 					"title @a[name=\"[player]\"] title 抽中了 [奖品名字]",
 				},
 			},
@@ -99,7 +99,7 @@ func (b *NewLottery) Init(cfg *defines.ComponentConfig, storage defines.StorageA
 				"结尾数字": 100,
 				"类型":   "小保底奖品",
 				"抽中执行指令": []string{
-					"execute @a[name=\"[player]\"] ~~~ structure load [奖品结构名字] ~~~",
+					"execute as @a[name=\"[player]\"] at @s run structure load [奖品结构名字] ~~~",
 					"title @a[name=\"[player]\"] title 抽中了 [奖品名字]",
 				},
 			},

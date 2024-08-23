@@ -11,24 +11,26 @@ import (
 // 获取一个潜影盒到快捷栏 5 。
 // 此函数仅应当在放置潜影盒时被使用
 func (c *Container) getShulkerBox() error {
-	var blockMetaData uint16
+	var err error
 	api := c.BlockEntity.Interface.(*GameInterface.GameInterface)
 	// 初始化
-	blockMetaData, _ = get_block_data_from_states(
+	c.BlockEntity.Block.Name, _, err = get_new_block_states_from_older(
 		fmt.Sprintf("minecraft:%s", c.BlockEntity.Block.Name),
 		c.BlockEntity.Block.States,
 	)
+	if err != nil {
+		return fmt.Errorf("getShulkerBox: %v", err)
+	}
 	// 取得潜影盒的方块数据值(附加值)
-	err := api.ReplaceItemInInventory(
+	err = api.ReplaceItemInInventory(
 		GameInterface.TargetMySelf,
 		GameInterface.ItemGenerateLocation{
 			Path: "slot.hotbar",
 			Slot: 5,
 		},
 		types.ChestSlot{
-			Name:   c.BlockEntity.Block.Name,
-			Count:  1,
-			Damage: blockMetaData,
+			Name:  c.BlockEntity.Block.Name,
+			Count: 1,
 		},
 		"",
 		true,
@@ -193,6 +195,7 @@ func (c *Container) MoveItemIntoContainer(
 	itemLocation uint8,
 	destination uint8,
 ) error {
+	var containerID uint8
 	api := c.BlockEntity.Interface.(*GameInterface.GameInterface)
 	// 初始化
 	holder := api.Resources.Container.Occupy()
@@ -215,6 +218,12 @@ func (c *Container) MoveItemIntoContainer(
 	got := SupportContainerPool[c.BlockEntity.Block.Name]
 	// 获取 itemLocation 处的物品数据，
 	// 以及已打开容器的数据
+	if len(got.ContainerIDMapping) > 0 {
+		containerID = got.ContainerIDMapping[destination]
+	} else {
+		containerID = got.UniversalContainerID
+	}
+	// 确定容器 ID
 	_, err = api.MoveItem(
 		GameInterface.ItemLocation{
 			WindowID:    0,
@@ -223,7 +232,7 @@ func (c *Container) MoveItemIntoContainer(
 		},
 		GameInterface.ItemLocation{
 			WindowID:    container_opening_data.WindowID,
-			ContainerID: got.ContainerID,
+			ContainerID: containerID,
 			Slot:        destination,
 		},
 		uint8(itemData.Stack.Count),
@@ -296,7 +305,7 @@ func (c *Container) GetSubBlock(
 	if item.Enhancement != nil && len(item.Enhancement.DisplayName) != 0 {
 		resp, err := api.RenameItemByAnvil(
 			c.BlockEntity.AdditionalData.Position,
-			`["direction": 0, "damage": "undamaged"]`,
+			`["direction"=0,"damage"="undamaged"]`,
 			5,
 			[]GameInterface.ItemRenamingRequest{
 				{
@@ -381,6 +390,7 @@ func (c *Container) GetNBTItem(
 // 返回的物品列表代表应当直接在容器上
 // 应用 replaceitem 命令的物品项目
 func (c *Container) ItemPlanner(contents []GeneralItem) ([]GeneralItem, error) {
+	var containerID uint8
 	var needOpenInventory bool
 	var needOpenContainer bool
 	moveIndex := map[uint8]GeneralItem{}
@@ -670,7 +680,7 @@ func (c *Container) ItemPlanner(contents []GeneralItem) ([]GeneralItem, error) {
 		if len(request) > 0 {
 			result, err := api.RenameItemByAnvil(
 				c.BlockEntity.AdditionalData.Position,
-				`["direction": 0, "damage": "undamaged"]`,
+				`["direction"=0,"damage"="undamaged"]`,
 				5,
 				request,
 			)
@@ -726,6 +736,12 @@ func (c *Container) ItemPlanner(contents []GeneralItem) ([]GeneralItem, error) {
 			}
 			// 如果当前物品是空气，
 			// 那么忽略当前物品并继续
+			if len(got.ContainerIDMapping) > 0 {
+				containerID = got.ContainerIDMapping[value.Basic.Slot]
+			} else {
+				containerID = got.UniversalContainerID
+			}
+			// 确定容器 ID
 			resp, err := api.MoveItem(
 				GameInterface.ItemLocation{
 					WindowID:    0,
@@ -734,7 +750,7 @@ func (c *Container) ItemPlanner(contents []GeneralItem) ([]GeneralItem, error) {
 				},
 				GameInterface.ItemLocation{
 					WindowID:    container_opening_data.WindowID,
-					ContainerID: got.ContainerID,
+					ContainerID: containerID,
 					Slot:        value.Basic.Slot,
 				},
 				uint8(itemData.Stack.Count),

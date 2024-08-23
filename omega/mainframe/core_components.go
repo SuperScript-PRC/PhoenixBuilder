@@ -529,7 +529,7 @@ func (o *Partol) Inject(frame defines.MainFrame) {
 		o.mainFrame.GetGameListener().SetOnTypedPacketCallBack(packet.IDText, func(p packet.Packet) {
 			pk := p.(*packet.Text)
 			if pk.TextType == 2 && pk.Message == "§e%multiplayer.player.joined" {
-				o.mainFrame.GetGameControl().SendWOCmd(fmt.Sprintf("execute \"%s\" ~ 320 ~ tp \"%s\" ~ ~ ~", pk.Parameters[0], o.mainFrame.GetUQHolder().GetBotName()))
+				o.mainFrame.GetGameControl().SendWOCmd(fmt.Sprintf("execute as \"%s\" at @s positioned ~ 320 ~ run tp \"%s\" ~ ~ ~", pk.Parameters[0], o.mainFrame.GetUQHolder().GetBotName()))
 			}
 		})
 	}
@@ -565,7 +565,7 @@ func (o *Partol) Activate() {
 							o.mainFrame.GetGameControl().SendCmd(fmt.Sprintf("effect @s invisibility %v 1 true", o.Patrol*2))
 						}
 						if len(players) > 0 {
-							o.mainFrame.GetGameControl().SendWOCmd(fmt.Sprintf("execute \"%s\" ~ 320 ~ tp \"%s\" ~ ~ ~", players[0], o.mainFrame.GetUQHolder().GetBotName()))
+							o.mainFrame.GetGameControl().SendWOCmd(fmt.Sprintf("execute as \"%s\" at @s positioned ~ 320 ~ run tp \"%s\" ~ ~ ~", players[0], o.mainFrame.GetUQHolder().GetBotName()))
 						}
 					})
 				},

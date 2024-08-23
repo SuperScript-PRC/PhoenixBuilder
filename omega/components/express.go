@@ -58,7 +58,7 @@ func (o *Express) delivery(playerName string) {
 					for _, p := range pkgs {
 						player.Say(p.Name)
 						player.Say(fmt.Sprintf("是 %v 寄给你的", p.Src))
-						cmd := fmt.Sprintf("execute \"%v\" ~~~ structure load %v ~~~ 0_degrees none true false", playerName, p.StructureName)
+						cmd := fmt.Sprintf("execute as \"%v\" at @s run structure load %v ~~~ 0_degrees none true false", playerName, p.StructureName)
 						o.Frame.GetBackendDisplay().Write("将 " + p.Name + " 派送到 " + playerName + " " + p.StructureName)
 						o.Frame.GetGameControl().SendCmd(cmd)
 					}

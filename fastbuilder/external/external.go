@@ -121,6 +121,7 @@ func (handler *ExternalConnectionHandler) acceptConnection(conn connection.Relia
 							},
 							Internal:  false,
 							UnLimited: false,
+							Version:   0x23,
 						},
 					)
 				case packet.CommandTypeWebsocket:
@@ -134,6 +135,7 @@ func (handler *ExternalConnectionHandler) acceptConnection(conn connection.Relia
 							},
 							Internal:  false,
 							UnLimited: false,
+							Version:   0x23,
 						},
 					)
 				case packet.CommandTypeSettings:

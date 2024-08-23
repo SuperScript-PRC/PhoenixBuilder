@@ -2,23 +2,127 @@ package NBTAssigner
 
 import (
 	"fmt"
+	"phoenixbuilder/fastbuilder/generics"
 	GameInterface "phoenixbuilder/game_control/game_interface"
+	ResourcesControl "phoenixbuilder/game_control/resources_control"
 	"phoenixbuilder/minecraft/protocol/packet"
 
-	"github.com/google/uuid"
+	"github.com/go-gl/mathgl/mgl32"
 )
 
-// 我们不再检查用户提供的告示牌的 NBT 是否正确，
-// 我们信任并且永远认为它们是正确且完整的
+// ...
+const PlaceSignPath = "phoenixbuilder/bdump/nbt_assigner/place_sign.go"
+
+/*
+从 s.BlockEntity.Block.NBT 提取告示牌的
+一部分数据并保存在 s.SignData 或
+s.LegacySignData 中。
+
+如果 s.IsNotLegacySignBlock 为真，
+则 s.SignData 将存放这些数据，
+否则由 s.LegacySignData 存放这些数据。
+
+对于未被解码的部分，
+我们不再检查这部分 NBT 是否正确，
+我们信任并且永远认为它们是正确且完整的
+*/
 func (s *Sign) Decode() error {
+	nbt := s.BlockEntity.Block.NBT
+	_, s.IsNotLegacySignBlock = nbt["IsWaxed"]
+	// 初始化
+	id, err := generics.To[string](nbt["id"], `nbt["id"]`, PlaceSignPath)
+	if err != nil {
+		return fmt.Errorf("Decode: %v", err)
+	}
+	if id == "HangingSign" {
+		s.IsHangingSignBlock = true
+	}
+	// 确定告示牌类型
+	if !s.IsNotLegacySignBlock {
+		s.LegacySignData = &LegacySignData{}
+		// 初始化
+		ignoreLighting, err := generics.To[byte](nbt["IgnoreLighting"], `nbt["IgnoreLighting"]`, PlaceSignPath)
+		if err != nil {
+			return fmt.Errorf("Decode: %v", err)
+		}
+		if ignoreLighting == byte(1) {
+			s.LegacySignData.IgnoreLighting = true
+		}
+		// IgnoreLighting
+		s.LegacySignData.SignTextColor, err = generics.To[int32](nbt["SignTextColor"], `nbt["SignTextColor"]`, PlaceSignPath)
+		if err != nil {
+			return fmt.Errorf("Decode: %v", err)
+		}
+		// SignTextColor
+	} else {
+		s.SignData = &SignData{}
+		// 初始化
+		isWaxed, err := generics.To[byte](nbt["IsWaxed"], `nbt["IsWaxed"]`, PlaceSignPath)
+		if err != nil {
+			return fmt.Errorf("Decode: %v", err)
+		}
+		if isWaxed == byte(1) {
+			s.SignData.IsWaxed = true
+		}
+		// IsWaxed
+		{
+			text, err := generics.To[map[string]any](nbt["FrontText"], `nbt["FrontText"]`, PlaceSignPath)
+			if err != nil {
+				return fmt.Errorf("Decode: %v", err)
+			}
+			// FrontText
+			ignoreLighting, err := generics.To[byte](text["IgnoreLighting"], `nbt["FrontText"]["IgnoreLighting"]`, PlaceSignPath)
+			if err != nil {
+				return fmt.Errorf("Decode: %v", err)
+			}
+			if ignoreLighting == byte(1) {
+				s.SignData.FrontText.IgnoreLighting = true
+			}
+			// FrontText["IgnoreLighting"]
+			s.SignData.FrontText.SignTextColor, err = generics.To[int32](text["SignTextColor"], `nbt["FrontText"]["SignTextColor"]`, PlaceSignPath)
+			if err != nil {
+				return fmt.Errorf("Decode: %v", err)
+			}
+			// FrontText["SignTextColor"]
+		}
+		// FrontText
+		{
+			text, err := generics.To[map[string]any](nbt["BackText"], `nbt["BackText"]`, PlaceSignPath)
+			if err != nil {
+				return fmt.Errorf("Decode: %v", err)
+			}
+			// BackText
+			ignoreLighting, err := generics.To[byte](text["IgnoreLighting"], `nbt["BackText"]["IgnoreLighting"]`, PlaceSignPath)
+			if err != nil {
+				return fmt.Errorf("Decode: %v", err)
+			}
+			if ignoreLighting == byte(1) {
+				s.SignData.BackText.IgnoreLighting = true
+			}
+			// BackText["IgnoreLighting"]
+			s.SignData.BackText.SignTextColor, err = generics.To[int32](text["SignTextColor"], `nbt["BackText"]["SignTextColor"]`, PlaceSignPath)
+			if err != nil {
+				return fmt.Errorf("Decode: %v", err)
+			}
+			// BackText["SignTextColor"]
+		}
+		// BackText
+	}
+	// decode data
 	return nil
+	// return
 }
 
 // 放置一个告示牌并写入告示牌数据
 func (s *Sign) WriteData() error {
-	var uniqueID_1 uuid.UUID
-	var uniqueID_2 uuid.UUID
-	// 初始化变量
+	var preBlockName string = "oak_hanging_sign"
+	api := s.BlockEntity.Interface.(*GameInterface.GameInterface)
+	useItemOnBlocks := GameInterface.UseItemOnBlocks{
+		HotbarSlotID: 0,
+		BlockPos:     s.BlockEntity.AdditionalData.Position,
+		BlockStates:  map[string]interface{}{"facing_direction": int32(4)},
+	}
+	// 初始化
 	if s.BlockEntity.AdditionalData.FastMode {
 		err := s.BlockEntity.Interface.SetBlockAsync(s.BlockEntity.AdditionalData.Position, s.BlockEntity.Block.Name, s.BlockEntity.AdditionalData.BlockStates)
 		if err != nil {
@@ -26,170 +130,193 @@ func (s *Sign) WriteData() error {
 		}
 		return nil
 	}
-	gameInterface := s.BlockEntity.Interface.(*GameInterface.GameInterface)
 	// 放置告示牌(快速导入模式下)
 	{
-		err := gameInterface.SendSettingsCommand(fmt.Sprintf("tp %d %d %d", s.BlockEntity.AdditionalData.Position[0], s.BlockEntity.AdditionalData.Position[1], s.BlockEntity.AdditionalData.Position[2]), true)
+		err := api.SendSettingsCommand(fmt.Sprintf("tp %d %d %d", s.BlockEntity.AdditionalData.Position[0], s.BlockEntity.AdditionalData.Position[1], s.BlockEntity.AdditionalData.Position[2]), true)
 		if err != nil {
 			return fmt.Errorf("WriteData: %v", err)
 		}
 		// 传送机器人到告示牌所在的位置
-		err = gameInterface.SendSettingsCommand(
-			fmt.Sprintf(
-				"setblock %d %d %d air",
-				s.BlockEntity.AdditionalData.Position[0],
-				s.BlockEntity.AdditionalData.Position[1],
-				s.BlockEntity.AdditionalData.Position[2],
-			),
-			true,
-		)
+		err = api.SetBlock(s.BlockEntity.AdditionalData.Position, "air", `[]`)
 		if err != nil {
 			return fmt.Errorf("WriteData: %v", err)
 		}
-		// 清除当前告示牌处的方块。
-		// 如果不这么做且原本该处的方块是告示牌的话，
-		// 那么 NBT 数据将会注入失败
-		err = gameInterface.SendSettingsCommand(
-			"replaceitem entity @s slot.hotbar 0 oak_sign",
-			true,
-		)
+		// 清除告示牌处的方块
+		if !s.IsHangingSignBlock {
+			preBlockName = "wall_sign"
+		}
+		useItemOnBlocks.BlockName = preBlockName
+		// 确定 预设告示牌 的方块名称
+		err = api.SetBlock(s.BlockEntity.AdditionalData.Position, preBlockName, `["facing_direction"=4]`)
 		if err != nil {
 			return fmt.Errorf("WriteData: %v", err)
 		}
-		// 获取一个告示牌到快捷栏 0
-		err = gameInterface.ChangeSelectedHotbarSlot(0)
-		if err != nil {
-			return fmt.Errorf("WriteData: %v", err)
-		}
-		// 切换手持物品栏到快捷栏 0
-		uniqueID_1, err = gameInterface.BackupStructure(
-			GameInterface.MCStructure{
-				BeginX: s.BlockEntity.AdditionalData.Position[0] + 1,
-				BeginY: s.BlockEntity.AdditionalData.Position[1],
-				BeginZ: s.BlockEntity.AdditionalData.Position[2],
-				SizeX:  1,
-				SizeY:  1,
-				SizeZ:  1,
-			},
-		)
-		if err != nil {
-			return fmt.Errorf("WriteData: %v", err)
-		}
-		/*
-			我们会在告示牌的 (~1, ~, ~) 处生成一个玻璃，
-			然后点击这个玻璃并指定点击的面是 4 以将手中的告示牌放上去。
-
-			这样，我们就可以取得反作弊的认同，
-			然后我们就可以向告示牌注入 NBT 数据了。
-
-			但在生成玻璃前，我们需要备份这个玻璃原本的方块以方便之后恢复它
-		*/
-		err = gameInterface.SendSettingsCommand(
-			fmt.Sprintf(
-				"setblock %d %d %d %s",
-				s.BlockEntity.AdditionalData.Position[0]+1,
-				s.BlockEntity.AdditionalData.Position[1],
-				s.BlockEntity.AdditionalData.Position[2],
-				GameInterface.PlaceBlockBase,
-			),
-			true,
-		)
-		if err != nil {
-			return fmt.Errorf("WriteData: %v", err)
-		}
-		err = gameInterface.AwaitChangesGeneral()
-		if err != nil {
-			return fmt.Errorf("WriteData: %v", err)
-		}
-		// 生成上文提到的玻璃。
-		// TODO: 优化上方这段代码
-		err = gameInterface.PlaceBlock(
-			GameInterface.UseItemOnBlocks{
-				HotbarSlotID: 0,
-				BlockPos: [3]int32{
-					s.BlockEntity.AdditionalData.Position[0] + 1,
-					s.BlockEntity.AdditionalData.Position[1],
-					s.BlockEntity.AdditionalData.Position[2],
-				},
-				BlockName:   GameInterface.PlaceBlockBase,
-				BlockStates: map[string]interface{}{},
-			},
-			4,
-		)
-		if err != nil {
-			return fmt.Errorf("WriteData: %v", err)
-		}
-		// 在玻璃上放置手中的告示牌
-		err = gameInterface.SetBlockAsync(s.BlockEntity.AdditionalData.Position, s.BlockEntity.Block.Name, s.BlockEntity.AdditionalData.BlockStates)
-		if err != nil {
-			return fmt.Errorf("WriteData: %v", err)
-		}
-		// 现在玻璃上有了一个告示牌，这是我们刚刚放上去的，
-		// 但这个告示牌的种类是 oak_sign ，且朝向固定，
-		// 因此现在我们需要覆写这个告示牌的种类及朝向为正确的形式。
-		// 经过测试，覆写操作不会导致 NBT 数据无法注入
+		// 放置预设告示牌方块
 	}
 	// 放置告示牌
-	err := gameInterface.WritePacket(&packet.BlockActorData{
+	err := api.ChangeSelectedHotbarSlot(0)
+	if err != nil {
+		return fmt.Errorf("WriteData: %v", err)
+	}
+	// 切换手持物品栏到快捷栏 0
+	resp := api.SendWSCommandWithResponse(
+		"replaceitem entity @s slot.hotbar 0 air",
+		ResourcesControl.CommandRequestOptions{
+			TimeOut: ResourcesControl.CommandRequestNoDeadLine,
+		},
+	)
+	if resp.Error != nil {
+		return fmt.Errorf("WriteData: %v", resp.Error)
+	}
+	// 清空快捷栏 0 以防止稍后在手持蜜脾的情况下点击告示牌，
+	// 因为用 蜜脾 点击告示牌会导致告示牌被封装
+	err = api.ClickBlock(GameInterface.UseItemOnBlocks{
+		HotbarSlotID: 0,
+		BlockPos:     s.BlockEntity.AdditionalData.Position,
+		BlockName:    preBlockName,
+		BlockStates:  map[string]interface{}{"facing_direction": int32(4)},
+	})
+	if err != nil {
+		return fmt.Errorf("WriteData: %v", err)
+	}
+	// 打开告示牌
+	signBlockNBTData := s.BlockEntity.Block.NBT
+	if !s.IsNotLegacySignBlock {
+		signBlockNBTData = map[string]any{"FrontText": s.BlockEntity.Block.NBT}
+	}
+	err = api.WritePacket(&packet.BlockActorData{
 		Position: s.BlockEntity.AdditionalData.Position,
-		NBTData:  s.BlockEntity.Block.NBT,
+		NBTData:  signBlockNBTData,
 	})
 	if err != nil {
 		return fmt.Errorf("WriteData: %v", err)
 	}
 	// 写入告示牌数据
-	uniqueID_2, err = gameInterface.BackupStructure(GameInterface.MCStructure{
-		BeginX: s.BlockEntity.AdditionalData.Position[0],
-		BeginY: s.BlockEntity.AdditionalData.Position[1],
-		BeginZ: s.BlockEntity.AdditionalData.Position[2],
-		SizeX:  1,
-		SizeY:  1,
-		SizeZ:  1,
-	})
+	{
+		var bestFrontColor [3]uint8
+		var bestBackColor *[3]uint8
+		playerPosition := mgl32.Vec3{
+			float32(s.BlockEntity.AdditionalData.Position[0]),
+			float32(s.BlockEntity.AdditionalData.Position[1]),
+			float32(s.BlockEntity.AdditionalData.Position[2]),
+		}
+		// 初始化
+		if s.IsNotLegacySignBlock {
+			frontRGB, _ := DecodeVarRGBA(s.SignData.FrontText.SignTextColor)
+			backRGB, _ := DecodeVarRGBA(s.SignData.BackText.SignTextColor)
+			bestFrontColor = SearchForBestColor(frontRGB, DefaultDyeColor)
+			bestBackColorTemp := SearchForBestColor(backRGB, DefaultDyeColor)
+			bestBackColor = &bestBackColorTemp
+		} else {
+			rgb, _ := DecodeVarRGBA(s.LegacySignData.SignTextColor)
+			bestFrontColor = SearchForBestColor(rgb, DefaultDyeColor)
+		}
+		// 确定告示牌各面的颜色
+		if bestFrontColor != [3]uint8{0, 0, 0} {
+			dyeItemName := RGBToDyeItemName[bestFrontColor]
+			// 确定染料的物品名
+			resp = api.SendWSCommandWithResponse(
+				fmt.Sprintf("replaceitem entity @s slot.hotbar 0 %s", dyeItemName),
+				ResourcesControl.CommandRequestOptions{
+					TimeOut: ResourcesControl.CommandRequestNoDeadLine,
+				},
+			)
+			if resp.Error != nil {
+				return fmt.Errorf("WriteData: %v", resp.Error)
+			}
+			// 获取对应的染料到快捷栏 0
+			err = api.ClickBlockWitchPlayerPosition(useItemOnBlocks, playerPosition)
+			if err != nil {
+				return fmt.Errorf("WriteData: %v", err)
+			}
+			// 告示牌正面染色
+		}
+		if bestBackColor != nil && *bestBackColor != [3]uint8{0, 0, 0} {
+			dyeItemName := RGBToDyeItemName[*bestBackColor]
+			// 确定染料的物品名
+			resp = api.SendWSCommandWithResponse(
+				fmt.Sprintf("replaceitem entity @s slot.hotbar 0 %s", dyeItemName),
+				ResourcesControl.CommandRequestOptions{
+					TimeOut: ResourcesControl.CommandRequestNoDeadLine,
+				},
+			)
+			if resp.Error != nil {
+				return fmt.Errorf("WriteData: %v", resp.Error)
+			}
+			// 获取对应的染料到快捷栏 0
+			playerPosition[0] = playerPosition[0] + 1
+			err = api.ClickBlockWitchPlayerPosition(useItemOnBlocks, playerPosition)
+			if err != nil {
+				return fmt.Errorf("WriteData: %v", err)
+			}
+			// 告示牌背面染色
+		}
+	}
+	// 告示牌染色
+	{
+		playerPosition := mgl32.Vec3{
+			float32(s.BlockEntity.AdditionalData.Position[0]),
+			float32(s.BlockEntity.AdditionalData.Position[1]),
+			float32(s.BlockEntity.AdditionalData.Position[2]),
+		}
+		// 初始化
+		{
+			matchA := s.IsNotLegacySignBlock && (s.SignData.FrontText.IgnoreLighting || s.SignData.BackText.IgnoreLighting)
+			matchB := !s.IsNotLegacySignBlock && s.LegacySignData.IgnoreLighting
+			if matchA || matchB {
+				resp = api.SendWSCommandWithResponse(
+					"replaceitem entity @s slot.hotbar 0 glow_ink_sac",
+					ResourcesControl.CommandRequestOptions{
+						TimeOut: ResourcesControl.CommandRequestNoDeadLine,
+					},
+				)
+				if resp.Error != nil {
+					return fmt.Errorf("WriteData: %v", resp.Error)
+				}
+				// 获取一个 发光墨囊 到快捷栏 0
+			}
+			// 取得 发光墨囊
+			if (s.IsNotLegacySignBlock && s.SignData.FrontText.IgnoreLighting) || matchB {
+				err = api.ClickBlockWitchPlayerPosition(useItemOnBlocks, playerPosition)
+				if err != nil {
+					return fmt.Errorf("WriteData: %v", err)
+				}
+			}
+			if s.IsNotLegacySignBlock && s.SignData.BackText.IgnoreLighting {
+				playerPosition[0] = playerPosition[0] + 1
+				err = api.ClickBlockWitchPlayerPosition(useItemOnBlocks, playerPosition)
+				if err != nil {
+					return fmt.Errorf("WriteData: %v", err)
+				}
+			}
+			// 使用 发光墨囊 点击告示牌的对应面以让该面发光
+		}
+		// 附加发光效果
+	}
+	// 告示牌发光效果
+	if s.IsNotLegacySignBlock && s.SignData.IsWaxed {
+		resp = api.SendWSCommandWithResponse(
+			"replaceitem entity @s slot.hotbar 0 honeycomb",
+			ResourcesControl.CommandRequestOptions{
+				TimeOut: ResourcesControl.CommandRequestNoDeadLine,
+			},
+		)
+		if resp.Error != nil {
+			return fmt.Errorf("WriteData: %v", resp.Error)
+		}
+		// 获取一个 蜜脾 到快捷栏 0
+		err = api.ClickBlock(useItemOnBlocks)
+		if err != nil {
+			return fmt.Errorf("WriteData: %v", err)
+		}
+		// 封装告示牌
+	}
+	// 告示牌涂蜡
+	err = api.SetBlockAsync(s.BlockEntity.AdditionalData.Position, s.BlockEntity.Block.Name, s.BlockEntity.AdditionalData.BlockStates)
 	if err != nil {
 		return fmt.Errorf("WriteData: %v", err)
 	}
-	/*
-		备份告示牌处的方块。
-
-		稍后我们会恢复上文提到的玻璃处的方块为原本方块，
-		而此方块被恢复后，游戏会按照特性刷新它附近的方块，
-		也就是告示牌方块。
-
-		但我们无法保证刷新后，我们导入的告示牌仍然可以稳定存在，
-		因为它可能会因为缺少依附方块而掉落。
-
-		因此，我们现在备份一次告示牌，然后再恢复玻璃处的方块，
-		然后再强行生成一次告示牌本身。
-
-		注：这个解法并不优雅，而且会浪费时间，
-		但它可以显著提高告示牌的存活概率，
-		而且用户不希望为了告示牌而再导入一次 BDX 文件。
-
-		TODO: 在某天推迟部分方块的导入顺序，
-		使得告示牌这类依附型方块在最后再被导入
-	*/
-	err = gameInterface.RevertStructure(
-		uniqueID_1,
-		GameInterface.BlockPos{
-			s.BlockEntity.AdditionalData.Position[0] + 1,
-			s.BlockEntity.AdditionalData.Position[1],
-			s.BlockEntity.AdditionalData.Position[2],
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("WriteData: %v", err)
-	}
-	// 将上文提到的玻璃处的方块恢复为原本的方块
-	gameInterface.RevertStructure(
-		uniqueID_2,
-		GameInterface.BlockPos{
-			s.BlockEntity.AdditionalData.Position[0],
-			s.BlockEntity.AdditionalData.Position[1],
-			s.BlockEntity.AdditionalData.Position[2],
-		},
-	)
-	// 再强行生成一次告示牌本身以抑制其可能发生的掉落
+	// 覆写告示牌的种类和朝向为正确值
 	return nil
 	// 返回值
 }

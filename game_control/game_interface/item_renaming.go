@@ -162,7 +162,7 @@ func (g *GameInterface) RenameItem(
 		placeStackRequestAction := protocol.PlaceStackRequestAction{}
 		placeStackRequestAction.Count = byte(itemDatas.Stack.Count)
 		placeStackRequestAction.Source = protocol.StackRequestSlotInfo{
-			ContainerID:    0x3c,
+			ContainerID:    protocol.ContainerCreatedOutput, // [NEMC 1.20.10] 60 -> 61 (Added by Happy2018new)
 			Slot:           0x32,
 			StackNetworkID: newRequestID,
 		}
@@ -194,6 +194,7 @@ func (g *GameInterface) RenameItem(
 						&placeStackRequestAction,
 					},
 					FilterStrings: []string{name},
+					FilterCause:   protocol.FilterCauseAnvilText,
 				},
 			},
 		}
@@ -224,18 +225,6 @@ func (g *GameInterface) RenameItem(
 					WindowID: uint32(container_opening_data.WindowID),
 					ChangeResult: map[uint8]protocol.ItemInstance{
 						1: AirItem,
-					},
-				},
-				0x1: {
-					WindowID: uint32(container_opening_data.WindowID),
-					ChangeResult: map[uint8]protocol.ItemInstance{
-						2: AirItem,
-					},
-				},
-				0x3c: {
-					WindowID: uint32(container_opening_data.WindowID),
-					ChangeResult: map[uint8]protocol.ItemInstance{
-						0x32: AirItem,
 					},
 				},
 			},

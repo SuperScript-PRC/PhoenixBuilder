@@ -500,6 +500,7 @@ func (g *GameCtrl) packCmdWithUUID(cmd string, ud uuid.UUID, ws bool) *packet.Co
 		CommandOrigin: origin,
 		Internal:      false,
 		UnLimited:     false,
+		Version:       0x23,
 	}
 	return commandRequest
 

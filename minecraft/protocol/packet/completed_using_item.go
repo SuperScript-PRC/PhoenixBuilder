@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	UseItemEquipArmor = iota
+	UseItemEquipArmour = iota
 	UseItemEat
 	UseItemAttack
 	UseItemConsume
@@ -31,6 +31,12 @@ type CompletedUsingItem struct {
 	// UseMethod is the method of the using of the item that was completed. It is one of the constants that
 	// may be found above.
 	UseMethod int32
+
+	// PhoenixBuilder specific changes.
+	// Author: Liliya233
+	//
+	// NetEase specific field.
+	UnknownItem protocol.ItemInstance
 }
 
 // ID ...
@@ -38,14 +44,19 @@ func (*CompletedUsingItem) ID() uint32 {
 	return IDCompletedUsingItem
 }
 
-// Marshal ...
-func (pk *CompletedUsingItem) Marshal(w *protocol.Writer) {
-	w.Int16(&pk.UsedItemID)
-	w.Int32(&pk.UseMethod)
-}
+func (pk *CompletedUsingItem) Marshal(io protocol.IO) {
+	io.Int16(&pk.UsedItemID)
+	io.Int32(&pk.UseMethod)
 
-// Unmarshal ...
-func (pk *CompletedUsingItem) Unmarshal(r *protocol.Reader) {
-	r.Int16(&pk.UsedItemID)
-	r.Int32(&pk.UseMethod)
+	// PhoenixBuilder specific changes.
+	// Author: Liliya233
+	//
+	// NetEase
+	{
+		/*
+			if something {
+				io.ItemInstance(&pk.UnknownItem)
+			}
+		*/
+	}
 }

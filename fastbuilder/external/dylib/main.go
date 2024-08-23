@@ -201,7 +201,7 @@ func safeDecode(pktByte []byte) (pkt mc_packet.Packet) {
 		return
 	}()
 	pkt = connection.TypePool[pktID]()
-	pkt.Unmarshal(protocol.NewReader(&NoEOFByteReader{s: pktByte[1:]}, 0))
+	pkt.Marshal(protocol.NewReader(&NoEOFByteReader{s: pktByte[1:]}, 0, false))
 	return
 }
 

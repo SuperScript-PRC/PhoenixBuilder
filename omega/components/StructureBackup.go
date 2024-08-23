@@ -182,7 +182,7 @@ func (o *StructureBackup) tryBackup(chat *defines.GameChat) bool {
 	return true
 }
 func (o *StructureBackup) doRecovery(user string, admin string, s *StructureEntry, sname string) {
-	recoverCmd := fmt.Sprintf("execute %v ~~~ structure load %v %v %v %v 0_degrees none true true", user, o.formatStructureName(s.RealIDX), s.StartPos[0], s.StartPos[1], s.StartPos[2])
+	recoverCmd := fmt.Sprintf("execute as %v at @s run structure load %v %v %v %v 0_degrees none true true", user, o.formatStructureName(s.RealIDX), s.StartPos[0], s.StartPos[1], s.StartPos[2])
 	o.Frame.GetBackendDisplay().Write(recoverCmd)
 	o.Frame.GetGameControl().SendCmdAndInvokeOnResponse(fmt.Sprintf("tp \"%v\" %v %v %v", user, s.CenterPos[0], s.CenterPos[1], s.CenterPos[2]), func(output *packet.CommandOutput) {
 		go func() {

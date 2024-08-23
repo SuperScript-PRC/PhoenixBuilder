@@ -296,7 +296,7 @@ func (o *PlayerShop) startBuy(player, goodId string, good *PlayerShopDataGood) {
 			if hasMoney > good.Price {
 				o.Frame.GetBackendDisplay().Write(fmt.Sprintf("玩家 %v 花费 %v / %v 购买了 %v %v", player, good.Price, hasMoney, goodId, good))
 				o.Frame.GetGameControl().SendCmd(fmt.Sprintf("scoreboard players remove \"%v\" %v %v", player, good.Currency.ScoreboardName, good.Price))
-				cmd := fmt.Sprintf("execute \"%v\" ~~~ structure load %v ~~~ 0_degrees none true false", player, good.StructureName)
+				cmd := fmt.Sprintf("execute as \"%v\" at @s run structure load %v ~~~ 0_degrees none true false", player, good.StructureName)
 				o.Frame.GetGameControl().SendCmd(cmd)
 				shouldGet := int(math.Floor(float64(good.Price) * (float64(1) - o.Tax)))
 				totalTax := good.Price - shouldGet

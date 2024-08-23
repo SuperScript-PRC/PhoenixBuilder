@@ -1,11 +1,9 @@
 package components
 
 import (
-	"phoenixbuilder/omega/components/omega_side"
 	"phoenixbuilder/omega/components/qqGroupLink"
 	universe_export "phoenixbuilder/omega/components/universeExport"
 	universe_import "phoenixbuilder/omega/components/universeImport"
-	"phoenixbuilder/omega/components/woodaxe"
 	"phoenixbuilder/omega/defines"
 )
 
@@ -80,15 +78,19 @@ func GetComponentsPool() map[string]func() defines.Component {
 		"同步退出": func() defines.Component {
 			return &Crash{BasicComponent: &defines.BasicComponent{}}
 		},
-		"手持32k检测": func() defines.Component {
-			return &IntrusionDetectSystem{BasicComponent: &defines.BasicComponent{}}
-		},
+		/*
+			"手持32k检测": func() defines.Component {
+				return &IntrusionDetectSystem{BasicComponent: &defines.BasicComponent{}}
+			},
+		*/
 		"违规昵称检测": func() defines.Component {
 			return &WhoAreYou{BasicComponent: &defines.BasicComponent{}}
 		},
-		"32k方块检测": func() defines.Component {
-			return &ContainerScan{BasicComponent: &defines.BasicComponent{}}
-		},
+		/*
+			"32k方块检测": func() defines.Component {
+				return &ContainerScan{BasicComponent: &defines.BasicComponent{}}
+			},
+		*/
 		"管理员检测": func() defines.Component {
 			return &OpCheck{BasicComponent: &defines.BasicComponent{}}
 		},
@@ -101,9 +103,11 @@ func GetComponentsPool() map[string]func() defines.Component {
 		"区域扫描": func() defines.Component {
 			return &Scanner{BasicComponent: &defines.BasicComponent{}}
 		},
-		"刷怪笼检测": func() defines.Component {
-			return &MobSpawnerScan{BasicComponent: &defines.BasicComponent{}}
-		},
+		/*
+			"刷怪笼检测": func() defines.Component {
+				return &MobSpawnerScan{BasicComponent: &defines.BasicComponent{}}
+			},
+		*/
 		"快递系统": func() defines.Component {
 			return &Express{BasicComponent: &defines.BasicComponent{}}
 		},
@@ -122,9 +126,11 @@ func GetComponentsPool() map[string]func() defines.Component {
 		"每日签到": func() defines.Component {
 			return &DailyAttendance{BasicComponent: &defines.BasicComponent{}}
 		},
-		"小木斧": func() defines.Component {
-			return &woodaxe.WoodAxe{BasicComponent: &defines.BasicComponent{}}
-		},
+		/*
+			"小木斧": func() defines.Component {
+				return &woodaxe.WoodAxe{BasicComponent: &defines.BasicComponent{}}
+			},
+		*/
 		"存档修复": func() defines.Component {
 			return &DifferRecover{BasicComponent: &defines.BasicComponent{}}
 		},
@@ -146,9 +152,11 @@ func GetComponentsPool() map[string]func() defines.Component {
 		"第三方_by温柔_公会系统": func() defines.Component {
 			return &defines.StubComponent{BasicComponent: &defines.BasicComponent{}, Hint: "该组件已被移除，请删除对应的配置文件"}
 		},
-		"OmegaSide旁加载组件系统": func() defines.Component {
-			return &omega_side.OmegaSide{BasicComponent: &defines.BasicComponent{}}
-		},
+		/*
+			"OmegaSide旁加载组件系统": func() defines.Component {
+				return &omega_side.OmegaSide{BasicComponent: &defines.BasicComponent{}}
+			},
+		*/
 		"第三方_by温柔_优化版本雪球菜单组件": func() defines.Component {
 			return &SnowMenu{BasicComponent: &defines.BasicComponent{}}
 		},

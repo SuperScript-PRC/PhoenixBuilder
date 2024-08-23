@@ -27,6 +27,13 @@ type ResourcePackStack struct {
 	// ExperimentsPreviouslyToggled specifies if any experiments were previously toggled in this world. It is
 	// probably used for some kind of metrics.
 	ExperimentsPreviouslyToggled bool
+
+	// PhoenixBuilder specific changes.
+	// Author: Liliya233
+	//
+	// The following fields are NetEase specific.
+	Unknown1 bool
+	Unknown2 bool
 }
 
 // ID ...
@@ -34,48 +41,20 @@ func (*ResourcePackStack) ID() uint32 {
 	return IDResourcePackStack
 }
 
-// Marshal ...
-func (pk *ResourcePackStack) Marshal(w *protocol.Writer) {
-	w.Bool(&pk.TexturePackRequired)
-	behaviourLen, textureLen := uint32(len(pk.BehaviourPacks)), uint32(len(pk.TexturePacks))
-	w.Varuint32(&behaviourLen)
-	for _, pack := range pk.BehaviourPacks {
-		protocol.StackPack(w, &pack)
-	}
-	w.Varuint32(&textureLen)
-	for _, pack := range pk.TexturePacks {
-		protocol.StackPack(w, &pack)
-	}
-	w.String(&pk.BaseGameVersion)
-	l := uint32(len(pk.Experiments))
-	w.Uint32(&l)
-	for _, experiment := range pk.Experiments {
-		protocol.Experiment(w, &experiment)
-	}
-	w.Bool(&pk.ExperimentsPreviouslyToggled)
-}
+func (pk *ResourcePackStack) Marshal(io protocol.IO) {
+	io.Bool(&pk.TexturePackRequired)
+	protocol.Slice(io, &pk.BehaviourPacks)
+	protocol.Slice(io, &pk.TexturePacks)
+	io.String(&pk.BaseGameVersion)
+	protocol.SliceUint32Length(io, &pk.Experiments)
+	io.Bool(&pk.ExperimentsPreviouslyToggled)
 
-// Unmarshal ...
-func (pk *ResourcePackStack) Unmarshal(r *protocol.Reader) {
-	var length uint32
-	r.Bool(&pk.TexturePackRequired)
-	r.Varuint32(&length)
-
-	pk.BehaviourPacks = make([]protocol.StackResourcePack, length)
-	for i := uint32(0); i < length; i++ {
-		protocol.StackPack(r, &pk.BehaviourPacks[i])
+	// PhoenixBuilder specific changes.
+	// Author: Liliya233
+	//
+	// NetEase
+	{
+		io.Bool(&pk.Unknown1)
+		io.Bool(&pk.Unknown2)
 	}
-	r.Varuint32(&length)
-	pk.TexturePacks = make([]protocol.StackResourcePack, length)
-	for i := uint32(0); i < length; i++ {
-		protocol.StackPack(r, &pk.TexturePacks[i])
-	}
-	r.String(&pk.BaseGameVersion)
-	var l uint32
-	r.Uint32(&l)
-	pk.Experiments = make([]protocol.ExperimentData, l)
-	for i := uint32(0); i < l; i++ {
-		protocol.Experiment(r, &pk.Experiments[i])
-	}
-	r.Bool(&pk.ExperimentsPreviouslyToggled)
 }

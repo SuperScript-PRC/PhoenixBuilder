@@ -1,11 +1,16 @@
 package components
 
+/*
+Deprecated this because we don't have item runtime id table.
+
+
+
 import (
 	"encoding/json"
 	"fmt"
 	"phoenixbuilder/minecraft/protocol/packet"
 	"phoenixbuilder/mirror"
-	"phoenixbuilder/mirror/chunk"
+	"phoenixbuilder/mirror/blocks"
 	"phoenixbuilder/mirror/define"
 	"phoenixbuilder/omega/defines"
 	"phoenixbuilder/omega/utils"
@@ -213,9 +218,9 @@ func (o *ContainerScan) doCheckNbt(x, y, z int, nbt map[string]interface{}, getS
 		flag := true
 		if o.needFetchBlockName {
 			if rtid, success := o.Frame.GetWorld().Block(define.CubePos{x, y, z}); success {
-				if block, found := chunk.RuntimeIDToBlock(rtid); found {
+				if block, found := blocks.RuntimeIDToBlock(rtid); found {
 					flag = false
-					has32K, reason = o.regexNbtDetect(strings.ReplaceAll(block.Name, "minecraft:", ""), nbt, x, y, z)
+					has32K, reason = o.regexNbtDetect(strings.ReplaceAll(block.BedrockString(), "minecraft:", ""), nbt, x, y, z)
 				}
 			}
 			// has32K, reason = o.regexNbtDetect(s, nbt, x, y, z)
@@ -299,3 +304,4 @@ func (o *ContainerScan) awakeChecker() {
 		t()
 	}
 }
+*/

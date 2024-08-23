@@ -1,5 +1,10 @@
 package woodaxe
 
+/*
+Deprecated this because we don't have block runtime id to Java block table.
+
+
+
 import (
 	"fmt"
 	"math"
@@ -583,3 +588,4 @@ func largeFillEntry(o *WoodAxe) (action func(chat *defines.GameChat), actionName
 		}()
 	}, "largefill", "输入 largefill [x0] [y0] [z0] [x1] [y1] [z1] [方块名] [方块参数] 以进行大范围 fill (无法撤销)", true
 }
+*/

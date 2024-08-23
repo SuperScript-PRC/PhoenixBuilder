@@ -24,11 +24,23 @@ type UpdateBlockSynced struct {
 	// Layer is the world layer on which the block is updated. For most blocks, this is the first layer, as
 	// that layer is the default layer to place blocks on, but for blocks inside of each other, this differs.
 	Layer uint32
-	// EntityUniqueID is the unique ID of the falling block entity that the block transitions to or that the
-	// entity transitions from.
-	// Note that for both possible values for TransitionType, the EntityUniqueID should point to the falling
-	// block entity involved.
-	EntityUniqueID int64
+
+	/*
+		PhoenixBuilder specific changes.
+		Changes Maker: Liliya233
+		Committed by Happy2018new.
+
+		EntityUniqueID is the unique ID of the falling block entity that the block transitions to or that the
+		entity transitions from.
+		Note that for both possible values for TransitionType, the EntityUniqueID should point to the falling
+		block entity involved.
+
+		For netease, the data type of this field is uint64,
+		but on standard minecraft, this is int64.
+	*/
+	EntityUniqueID uint64
+	// EntityUniqueID int64
+
 	// TransitionType is the type of the transition that happened. It is either BlockToEntityTransition, when
 	// a block placed becomes a falling entity, or EntityToBlockTransition, when a falling entity hits the
 	// ground and becomes a solid block again.
@@ -40,22 +52,19 @@ func (*UpdateBlockSynced) ID() uint32 {
 	return IDUpdateBlockSynced
 }
 
-// Marshal ...
-func (pk *UpdateBlockSynced) Marshal(w *protocol.Writer) {
-	w.UBlockPos(&pk.Position)
-	w.Varuint32(&pk.NewBlockRuntimeID)
-	w.Varuint32(&pk.Flags)
-	w.Varuint32(&pk.Layer)
-	w.Varint64(&pk.EntityUniqueID)
-	w.Varuint64(&pk.TransitionType)
-}
+func (pk *UpdateBlockSynced) Marshal(io protocol.IO) {
+	io.UBlockPos(&pk.Position)
+	io.Varuint32(&pk.NewBlockRuntimeID)
+	io.Varuint32(&pk.Flags)
+	io.Varuint32(&pk.Layer)
 
-// Unmarshal ...
-func (pk *UpdateBlockSynced) Unmarshal(r *protocol.Reader) {
-	r.UBlockPos(&pk.Position)
-	r.Varuint32(&pk.NewBlockRuntimeID)
-	r.Varuint32(&pk.Flags)
-	r.Varuint32(&pk.Layer)
-	r.Varint64(&pk.EntityUniqueID)
-	r.Varuint64(&pk.TransitionType)
+	// PhoenixBuilder specific changes.
+	// Changes Maker: Liliya233
+	// Committed by Happy2018new.
+	{
+		io.Varuint64(&pk.EntityUniqueID)
+		// io.Varint64(&pk.EntityUniqueID)
+	}
+
+	io.Varuint64(&pk.TransitionType)
 }

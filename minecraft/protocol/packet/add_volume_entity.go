@@ -7,9 +7,20 @@ import (
 
 // AddVolumeEntity sends a volume entity's definition and metadata from server to client.
 type AddVolumeEntity struct {
-	// EntityRuntimeID is the runtime ID of the volume. The runtime ID is unique for each world session, and
-	// entities are generally identified in packets using this runtime ID.
-	EntityRuntimeID uint64
+	/*
+		PhoenixBuilder specific changes.
+		Changes Maker: Liliya233
+		Committed by Happy2018new.
+
+		EntityRuntimeID is the runtime ID of the volume. The runtime ID is unique for each world session, and
+		entities are generally identified in packets using this runtime ID.
+
+		For netease, the data type of this field is uint32,
+		but on standard minecraft, this is uint64.
+	*/
+	EntityRuntimeID uint32
+	// EntityRuntimeID uint64
+
 	// EntityMetadata is a map of entity metadata, which includes flags and data properties that alter in
 	// particular the way the volume functions or looks.
 	EntityMetadata map[string]any
@@ -32,26 +43,19 @@ func (*AddVolumeEntity) ID() uint32 {
 	return IDAddVolumeEntity
 }
 
-// Marshal ...
-func (pk *AddVolumeEntity) Marshal(w *protocol.Writer) {
-	w.Uint64(&pk.EntityRuntimeID)
-	w.NBT(&pk.EntityMetadata, nbt.NetworkLittleEndian)
-	w.String(&pk.EncodingIdentifier)
-	w.String(&pk.InstanceIdentifier)
-	w.UBlockPos(&pk.Bounds[0])
-	w.UBlockPos(&pk.Bounds[1])
-	w.Varint32(&pk.Dimension)
-	w.String(&pk.EngineVersion)
-}
-
-// Unmarshal ...
-func (pk *AddVolumeEntity) Unmarshal(r *protocol.Reader) {
-	r.Uint64(&pk.EntityRuntimeID)
-	r.NBT(&pk.EntityMetadata, nbt.NetworkLittleEndian)
-	r.String(&pk.EncodingIdentifier)
-	r.String(&pk.InstanceIdentifier)
-	r.UBlockPos(&pk.Bounds[0])
-	r.UBlockPos(&pk.Bounds[1])
-	r.Varint32(&pk.Dimension)
-	r.String(&pk.EngineVersion)
+func (pk *AddVolumeEntity) Marshal(io protocol.IO) {
+	// PhoenixBuilder specific changes.
+	// Changes Maker: Liliya233
+	// Committed by Happy2018new.
+	{
+		io.Varuint32(&pk.EntityRuntimeID)
+		// io.Uint64(&pk.EntityRuntimeID)
+	}
+	io.NBT(&pk.EntityMetadata, nbt.NetworkLittleEndian)
+	io.String(&pk.EncodingIdentifier)
+	io.String(&pk.InstanceIdentifier)
+	io.UBlockPos(&pk.Bounds[0])
+	io.UBlockPos(&pk.Bounds[1])
+	io.Varint32(&pk.Dimension)
+	io.String(&pk.EngineVersion)
 }

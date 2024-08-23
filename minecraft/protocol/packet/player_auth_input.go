@@ -1,8 +1,9 @@
 package packet
 
 import (
-	"github.com/go-gl/mathgl/mgl32"
 	"phoenixbuilder/minecraft/protocol"
+
+	"github.com/go-gl/mathgl/mgl32"
 )
 
 const (
@@ -43,6 +44,11 @@ const (
 	InputFlagPerformItemInteraction
 	InputFlagPerformBlockActions
 	InputFlagPerformItemStackRequest
+	InputFlagHandledTeleport
+	InputFlagEmoting
+	InputFlagMissedSwing
+	InputFlagStartCrawling
+	InputFlagStopCrawling
 )
 
 const (
@@ -63,6 +69,12 @@ const (
 	PlayModeExitLevel
 	PlayModeExitLevelLivingRoom
 	PlayModeNumModes
+)
+
+const (
+	InteractionModelTouch = iota
+	InteractionModelCrosshair
+	InteractionModelClassic
 )
 
 // PlayerAuthInput is sent by the client to allow for server authoritative movement. It is used to synchronise
@@ -103,6 +115,33 @@ type PlayerAuthInput struct {
 	ItemStackRequest protocol.ItemStackRequest
 	// BlockActions is a slice of block actions that the client has interacted with.
 	BlockActions []protocol.PlayerBlockAction
+	// AnalogueMoveVector is a Vec2 that specifies the direction in which the player moved, as a combination of X/Z
+	// values which are created using an analogue input.
+	AnalogueMoveVector mgl32.Vec2
+
+	/*
+		PhoenixBuilder specific changes.
+		Changes Maker: Liliya233
+		Committed by Happy2018new.
+
+		InteractionModel is a constant representing the interaction model the player is using. It is one of the
+		constants that may be found above.
+
+		For netease, the data type of this field is uint32,
+		but on standard minecraft, this is int32.
+	*/
+	InteractionModel uint32
+	// InteractionModel int32
+
+	/*
+		PhoenixBuilder specific changes.
+		Author: Liliya233
+
+		The following fields are NetEase specific.
+	*/
+	Unknown1 bool
+	Unknown2 mgl32.Vec2
+	Unknown3 bool
 }
 
 // ID ...
@@ -110,69 +149,52 @@ func (pk *PlayerAuthInput) ID() uint32 {
 	return IDPlayerAuthInput
 }
 
-// Marshal ...
-func (pk *PlayerAuthInput) Marshal(w *protocol.Writer) {
-	w.Float32(&pk.Pitch)
-	w.Float32(&pk.Yaw)
-	w.Vec3(&pk.Position)
-	w.Vec2(&pk.MoveVector)
-	w.Float32(&pk.HeadYaw)
-	w.Varuint64(&pk.InputData)
-	w.Varuint32(&pk.InputMode)
-	w.Varuint32(&pk.PlayMode)
-	if pk.PlayMode == PlayModeReality {
-		w.Vec3(&pk.GazeDirection)
+func (pk *PlayerAuthInput) Marshal(io protocol.IO) {
+	io.Float32(&pk.Pitch)
+	io.Float32(&pk.Yaw)
+	io.Vec3(&pk.Position)
+	io.Vec2(&pk.MoveVector)
+	io.Float32(&pk.HeadYaw)
+	io.Varuint64(&pk.InputData)
+	io.Varuint32(&pk.InputMode)
+	io.Varuint32(&pk.PlayMode)
+
+	// PhoenixBuilder specific changes.
+	// Changes Maker: Liliya233
+	// Committed by Happy2018new.
+	{
+		// io.Varint32(&pk.InteractionModel)
+		io.Varuint32(&pk.InteractionModel)
+		io.Bool(&pk.Unknown1) // For Netease
 	}
-	w.Varuint64(&pk.Tick)
-	w.Vec3(&pk.Delta)
+
+	if pk.PlayMode == PlayModeReality {
+		io.Vec3(&pk.GazeDirection)
+	}
+	io.Varuint64(&pk.Tick)
+	io.Vec3(&pk.Delta)
 
 	if pk.InputData&InputFlagPerformItemInteraction != 0 {
-		w.PlayerInventoryAction(&pk.ItemInteractionData)
+		io.PlayerInventoryAction(&pk.ItemInteractionData)
 	}
 
 	if pk.InputData&InputFlagPerformItemStackRequest != 0 {
-		protocol.WriteStackRequest(w, &pk.ItemStackRequest)
+		protocol.Single(io, &pk.ItemStackRequest)
 	}
 
 	if pk.InputData&InputFlagPerformBlockActions != 0 {
-		l := int32(len(pk.BlockActions))
-		w.Varint32(&l)
-		for _, action := range pk.BlockActions {
-			protocol.BlockAction(w, &action)
-		}
-	}
-}
-
-// Unmarshal ...
-func (pk *PlayerAuthInput) Unmarshal(r *protocol.Reader) {
-	r.Float32(&pk.Pitch)
-	r.Float32(&pk.Yaw)
-	r.Vec3(&pk.Position)
-	r.Vec2(&pk.MoveVector)
-	r.Float32(&pk.HeadYaw)
-	r.Varuint64(&pk.InputData)
-	r.Varuint32(&pk.InputMode)
-	r.Varuint32(&pk.PlayMode)
-	if pk.PlayMode == PlayModeReality {
-		r.Vec3(&pk.GazeDirection)
-	}
-	r.Varuint64(&pk.Tick)
-	r.Vec3(&pk.Delta)
-
-	if pk.InputData&InputFlagPerformItemInteraction != 0 {
-		r.PlayerInventoryAction(&pk.ItemInteractionData)
+		protocol.SliceVarint32Length(io, &pk.BlockActions)
 	}
 
-	if pk.InputData&InputFlagPerformItemStackRequest != 0 {
-		protocol.StackRequest(r, &pk.ItemStackRequest)
-	}
+	io.Vec2(&pk.AnalogueMoveVector)
 
-	if pk.InputData&InputFlagPerformBlockActions != 0 {
-		var l int32
-		r.Varint32(&l)
-		pk.BlockActions = make([]protocol.PlayerBlockAction, l)
-		for i := int32(0); i < l; i++ {
-			protocol.BlockAction(r, &pk.BlockActions[i])
-		}
+	// PhoenixBuilder specific changes.
+	// Author: Liliya233
+	//
+	// NetEase
+	{
+		io.Bool(&pk.Unknown1)
+		io.Vec2(&pk.Unknown2)
+		io.Bool(&pk.Unknown3)
 	}
 }

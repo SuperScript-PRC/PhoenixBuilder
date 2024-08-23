@@ -6,8 +6,17 @@ import (
 
 // RemoveVolumeEntity indicates a volume entity to be removed from server to client.
 type RemoveVolumeEntity struct {
-	// EntityRuntimeID ...
-	EntityRuntimeID uint64
+	/*
+		PhoenixBuilder specific changes.
+		Changes Maker: Liliya233
+		Committed by Happy2018new.
+
+		For netease, the data type of this field is uint32,
+		but on standard minecraft, this is uint64.
+	*/
+	EntityRuntimeID uint32
+	// EntityRuntimeID uint64
+
 	// Dimension ...
 	Dimension int32
 }
@@ -17,14 +26,13 @@ func (*RemoveVolumeEntity) ID() uint32 {
 	return IDRemoveVolumeEntity
 }
 
-// Marshal ...
-func (pk *RemoveVolumeEntity) Marshal(w *protocol.Writer) {
-	w.Uint64(&pk.EntityRuntimeID)
-	w.Varint32(&pk.Dimension)
-}
-
-// Unmarshal ...
-func (pk *RemoveVolumeEntity) Unmarshal(r *protocol.Reader) {
-	r.Uint64(&pk.EntityRuntimeID)
-	r.Varint32(&pk.Dimension)
+func (pk *RemoveVolumeEntity) Marshal(io protocol.IO) {
+	// PhoenixBuilder specific changes.
+	// Changes Maker: Liliya233
+	// Committed by Happy2018new.
+	{
+		io.Varuint32(&pk.EntityRuntimeID)
+		// io.Uint64(&pk.EntityRuntimeID)
+	}
+	io.Varint32(&pk.Dimension)
 }

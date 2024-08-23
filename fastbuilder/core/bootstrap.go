@@ -43,9 +43,10 @@ func setup() {
 }
 
 func display_info() {
-	pterm.DefaultBox.Println(pterm.LightCyan("https://github.com/Happy2018new/PhoenixBuilder/tree/Personal"))
-	pterm.Println(pterm.Yellow("PhoenixBuilder " + args.FBVersion))
-	pterm.Println(pterm.Yellow("注 - 此分叉只为 Happy2018new 个人使用而提供"))
+    pterm.Println(" _____               _____             _ \n|   __|___ ___ _ _ _|  _  |___ ___ ___| |\n|__   |   | . | | | |   __| .'|   | -_| |\n|_____|_|_|___|_____|__|  |__,|_|_|___|_|")
+	pterm.DefaultBox.Println(pterm.LightCyan("https://github.com/PhoenixBuilder/SnowPanel"))
+	pterm.Println(pterm.Yellow("SnowPanel-PhoenixBuilder 1.0"))
+	pterm.Println(pterm.Yellow("注 - 此版本为 SnowPanel 专供"))
 	if I18n.ShouldDisplaySpecial() {
 		fmt.Printf("%s", I18n.T(I18n.Special_Startup))
 	}

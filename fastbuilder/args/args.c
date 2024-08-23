@@ -1,17 +1,18 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <getopt.h>
-#include <string.h>
 #include <dirent.h>
 #include <errno.h>
+#include <getopt.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #ifndef PATH_MAX
 #include <limits.h>
 #endif
-#include <sys/types.h>
 #include <stdint.h>
+#include <sys/types.h>
 #ifdef WIN32
 #ifndef __MINGW32__
-#error "This file uses gcc-specific features, please consider switching to mingw gcc."
+#error                                                                         \
+    "This file uses gcc-specific features, please consider switching to mingw gcc."
 #endif
 #include <windows.h>
 #endif
@@ -20,22 +21,24 @@
 #define FB_VERSION "(CUSTOMIZED)"
 #define FB_COMMIT "???"
 #define FB_COMMIT_LONG "???"
-#warning "It seems that you're building PhoenixBuilder with plain `go build` command, it is highly recommended to use `make current` instead."
+#warning                                                                       \
+    "It seems that you're building PhoenixBuilder with plain `go build` command, it is highly recommended to use `make current` instead."
 #endif
 
 struct go_string {
-	char *buf;
-	uint64_t length;
+  char *buf;
+  uint64_t length;
 };
 
-#define EMPTY_GOSTRING {"",0}
+#define EMPTY_GOSTRING                                                         \
+  { "", 0 }
 
 char args_isDebugMode=0;
 char args_disableVersionChecking=0;
 char args_skipMCPCheckChallenges=0;
 struct go_string newAuthServer={
-	"https://api.fastbuilder.pro",
-	27
+	"https://user.fastbuilder.pro",
+	28
 };
 struct go_string startup_script=EMPTY_GOSTRING;
 struct go_string server_code=EMPTY_GOSTRING;
@@ -71,109 +74,109 @@ void print_help(const char *self_name) {
 	printf("\t\t--version-plain: Show the version of this program.\n");
 }
 
-char *commit_hash() {
-	return FB_COMMIT_LONG;
-}
+char *commit_hash() { return FB_COMMIT_LONG; }
 
 void print_version(int detailed) {
-	if(!detailed) {
-		printf(FB_VERSION "\n");
-		return;
-	}
-	printf("PhoenixBuilder " FB_VERSION "\n");
-	printf("COMMIT " FB_COMMIT_LONG "\n");
-	printf("\n");
+  if (!detailed) {
+    printf(FB_VERSION "\n");
+    return;
+  }
+  printf("PhoenixBuilder " FB_VERSION "\n");
+  printf("COMMIT " FB_COMMIT_LONG "\n");
+  printf("\n");
 }
 
 void read_token(char *token_path) {
-	FILE *file=fopen(token_path,"rb");
-	if(!file) {
-		fprintf(stderr, "Failed to read token at %s.\n",token_path);
-		exit(21);
-	}
-	fseek(file,0,SEEK_END);
-	size_t flen=ftell(file);
-	fseek(file,0,SEEK_SET);
-	token_content.length=flen;
-	token_content.buf=malloc(flen);
-	fread(token_content.buf, 1, flen, file);
-	fclose(file);
+  FILE *file = fopen(token_path, "rb");
+  if (!file) {
+    fprintf(stderr, "Failed to read token at %s.\n", token_path);
+    exit(21);
+  }
+  fseek(file, 0, SEEK_END);
+  size_t flen = ftell(file);
+  fseek(file, 0, SEEK_SET);
+  token_content.length = flen;
+  token_content.buf = malloc(flen);
+  fread(token_content.buf, 1, flen, file);
+  fclose(file);
 }
 
 void quickmake(struct go_string **target_ptr) {
-	size_t length=strlen(optarg);
-	char *data=malloc(length);
-	memcpy(data, optarg, length);
-	*target_ptr=malloc(16);
-	(*target_ptr)->buf=data;
-	(*target_ptr)->length=length;
+  size_t length = strlen(optarg);
+  char *data = malloc(length);
+  memcpy(data, optarg, length);
+  *target_ptr = malloc(16);
+  (*target_ptr)->buf = data;
+  (*target_ptr)->length = length;
 }
 
 void quickset(struct go_string *target_ptr) {
-	size_t length=strlen(optarg);
-	char *data=malloc(length);
-	memcpy(data, optarg, length);
-	target_ptr->buf=data;
-	target_ptr->length=length;
+  size_t length = strlen(optarg);
+  char *data = malloc(length);
+  memcpy(data, optarg, length);
+  target_ptr->buf = data;
+  target_ptr->length = length;
 }
 
 #ifdef DT_UNKNOWN
 
 void rmdir_recursive(char *path) {
-	char *pathend=path+strlen(path);
-	DIR *fbdir=opendir(path);
-	if(!fbdir) {
-		if(errno==ENOENT) {
-			return;
-		}
-		fprintf(stderr, "Failed to open directory [%s]: %s\n", path, strerror(errno));
-		exit(1);
-	}
-	struct dirent *dir_ent;
-	while((dir_ent=readdir(fbdir))!=NULL) {
-		if(dir_ent->d_type==DT_UNKNOWN) {
-			fprintf(stderr, "Found file with unknown type: %s\n", path);
-			exit(2);
-		}
-		if(dir_ent->d_type!=DT_DIR) {
-			sprintf(pathend,"%s",dir_ent->d_name);
-			remove(path);
-		}else{
-			if((dir_ent->d_name[0]=='.'&&dir_ent->d_name[1]==0)||(dir_ent->d_name[0]=='.'&&dir_ent->d_name[1]=='.'&&dir_ent->d_name[2]==0)){
-				continue;
-			}
-			sprintf(pathend,"%s/",dir_ent->d_name);
-			rmdir_recursive(path);
-			remove(path);
-		}
-	}
-	closedir(fbdir);
-	*pathend=0;
+  char *pathend = path + strlen(path);
+  DIR *fbdir = opendir(path);
+  if (!fbdir) {
+    if (errno == ENOENT) {
+      return;
+    }
+    fprintf(stderr, "Failed to open directory [%s]: %s\n", path,
+            strerror(errno));
+    exit(1);
+  }
+  struct dirent *dir_ent;
+  while ((dir_ent = readdir(fbdir)) != NULL) {
+    if (dir_ent->d_type == DT_UNKNOWN) {
+      fprintf(stderr, "Found file with unknown type: %s\n", path);
+      exit(2);
+    }
+    if (dir_ent->d_type != DT_DIR) {
+      sprintf(pathend, "%s", dir_ent->d_name);
+      remove(path);
+    } else {
+      if ((dir_ent->d_name[0] == '.' && dir_ent->d_name[1] == 0) ||
+          (dir_ent->d_name[0] == '.' && dir_ent->d_name[1] == '.' &&
+           dir_ent->d_name[2] == 0)) {
+        continue;
+      }
+      sprintf(pathend, "%s/", dir_ent->d_name);
+      rmdir_recursive(path);
+      remove(path);
+    }
+  }
+  closedir(fbdir);
+  *pathend = 0;
 }
 
 #else
 
 void go_rmdir_recursive(char *path);
-void rmdir_recursive(char *path) {
-	go_rmdir_recursive(path);
-}
+void rmdir_recursive(char *path) { go_rmdir_recursive(path); }
 
 #endif
 
 void config_cleanup() {
-	char *home_dir=getenv("HOME");
-	if(home_dir==NULL) {
-		fprintf(stderr, "Failed to obtain user's home directory, using \".\" instead.\n");
-		home_dir=".";
-	}
-	char *buf=malloc(PATH_MAX);
-	sprintf(buf, "%s", home_dir);
-	char *concat_start=buf+strlen(buf);
-	sprintf(concat_start,"/.config/fastbuilder/");
-	rmdir_recursive(buf);
-	remove(buf);
-	free(buf);
-	exit(0);
+  char *home_dir = getenv("HOME");
+  if (home_dir == NULL) {
+    fprintf(stderr,
+            "Failed to obtain user's home directory, using \".\" instead.\n");
+    home_dir = ".";
+  }
+  char *buf = malloc(PATH_MAX);
+  sprintf(buf, "%s", home_dir);
+  char *concat_start = buf + strlen(buf);
+  sprintf(concat_start, "/.config/fastbuilder/");
+  rmdir_recursive(buf);
+  remove(buf);
+  free(buf);
+  exit(0);
 }
 
 int _parse_args(int argc, char **argv) {
@@ -266,60 +269,51 @@ int _parse_args(int argc, char **argv) {
 	return -1;
 }
 
-struct go_string args_var_fbversion_struct={
-	FB_VERSION " (" FB_COMMIT ")",
-	sizeof(FB_VERSION " (" FB_COMMIT ")")-1
-};
+struct go_string args_var_fbversion_struct = {
+    FB_VERSION " (" FB_COMMIT ")", sizeof(FB_VERSION " (" FB_COMMIT ")") - 1};
 
-struct go_string args_var_fbplainversion_struct={
-	FB_VERSION,
-	sizeof(FB_VERSION)-1
-};
+struct go_string args_var_fbplainversion_struct = {FB_VERSION,
+                                                   sizeof(FB_VERSION) - 1};
 
-struct go_string args_fb_commit_struct={
-	FB_COMMIT,
-	sizeof(FB_COMMIT)-1
-};
+struct go_string args_fb_commit_struct = {FB_COMMIT, sizeof(FB_COMMIT) - 1};
 
-int args_has_specified_server() {
-	return server_code.length!=0;
-}
+int args_has_specified_server() { return server_code.length != 0; }
 
-int args_specified_token() {
-	return token_content.length!=0;
-}
+int args_specified_token() { return token_content.length != 0; }
 
 #ifndef WIN32
 __attribute__((constructor)) static void parse_args(int argc, char **argv) {
-	int ec;
-	if((ec=_parse_args(argc,argv))!=-1) {
-		exit(ec);
-	}
-	return;
+  int ec;
+  if ((ec = _parse_args(argc, argv)) != -1) {
+    exit(ec);
+  }
+  return;
 }
 #else
 __attribute__((constructor)) static void parse_args_win32() {
-	int argc;
-	char **argv;
-	wchar_t **ugly_argv=CommandLineToArgvW(GetCommandLineW(), &argc);
-	argv=malloc(sizeof(char*)*argc);
-	for(int i=0;i<argc;i++) {
-		int len=WideCharToMultiByte(CP_UTF8, 0, ugly_argv[i], -1, NULL, 0, NULL, 0);
-		argv[i]=malloc(len);
-		WideCharToMultiByte(CP_UTF8, 0, ugly_argv[i], -1, argv[i], len, NULL, 0);
-	}
-	int ec;
-	if((ec=_parse_args(argc,argv))!=-1) {
-		exit(ec);
-	}
-	for(int i=0;i<argc;i++) {
-		free(argv[i]);
-	}
-	free(argv);
-	LocalFree(ugly_argv);
-	HMODULE winmm_lib=LoadLibraryA("winmm.dll");
-	void (*timeBeginPeriod)(int)=(void *)GetProcAddress(winmm_lib, "timeBeginPeriod");
-	timeBeginPeriod(1);
-	FreeLibrary(winmm_lib);
+  int argc;
+  char **argv;
+  wchar_t **ugly_argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+  argv = malloc(sizeof(char *) * argc);
+  for (int i = 0; i < argc; i++) {
+    int len =
+        WideCharToMultiByte(CP_UTF8, 0, ugly_argv[i], -1, NULL, 0, NULL, 0);
+    argv[i] = malloc(len);
+    WideCharToMultiByte(CP_UTF8, 0, ugly_argv[i], -1, argv[i], len, NULL, 0);
+  }
+  int ec;
+  if ((ec = _parse_args(argc, argv)) != -1) {
+    exit(ec);
+  }
+  for (int i = 0; i < argc; i++) {
+    free(argv[i]);
+  }
+  free(argv);
+  LocalFree(ugly_argv);
+  HMODULE winmm_lib = LoadLibraryA("winmm.dll");
+  void (*timeBeginPeriod)(int) =
+      (void *)GetProcAddress(winmm_lib, "timeBeginPeriod");
+  timeBeginPeriod(1);
+  FreeLibrary(winmm_lib);
 }
 #endif

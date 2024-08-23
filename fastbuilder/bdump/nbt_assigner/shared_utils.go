@@ -3,9 +3,10 @@ package NBTAssigner
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"phoenixbuilder/fastbuilder/mcstructure"
 	"phoenixbuilder/fastbuilder/types"
-	"phoenixbuilder/mirror/chunk"
+	"phoenixbuilder/mirror/blocks"
 	"strings"
 )
 
@@ -77,32 +78,33 @@ func get_block_states_from_legacy_block(
 	blockName string,
 	metaData uint16,
 ) (map[string]interface{}, error) {
-	standardRuntimeID, found := chunk.LegacyBlockToRuntimeID(blockName, metaData)
+	standardRuntimeID, found := blocks.LegacyBlockToRuntimeID(blockName, metaData)
 	if !found {
 		return nil, fmt.Errorf("get_block_states_from_legacy_block: Failed to get the runtimeID of block %s; metaData = %d", blockName, metaData)
 	}
-	generalBlock, found := chunk.RuntimeIDToBlock(standardRuntimeID)
+	generalBlock, found := blocks.RuntimeIDToBlock(standardRuntimeID)
 	if !found {
 		return nil, fmt.Errorf("get_block_states_from_legacy_block: Failed to converse StandardRuntimeID to NEMCRuntimeID; standardRuntimeID = %d, blockName = %s, metaData = %d", standardRuntimeID, blockName, metaData)
 	}
-	return generalBlock.Properties, nil
+	return generalBlock.States().ToNBT(), nil
 }
 
-// 取得名称为 blockName 且方块状态为 blockStates 的数据值(附加值) 。
+// 取得名称为 blockName 且方块状态为 blockStates 的旧方块的
+// 新名称及它的新方块状态。
 // 特别地，name 需要加上命名空间 minecraft
-func get_block_data_from_states(
+func get_new_block_states_from_older(
 	blockName string,
-	blockStates map[string]interface{},
-) (uint16, error) {
-	standardRuntimeID, found := chunk.StateToRuntimeID(blockName, blockStates)
+	blockStates map[string]any,
+) (string, map[string]any, error) {
+	runtimeID, found := blocks.BlockNameAndStateToRuntimeID(blockName, blockStates)
 	if !found {
-		return 0, fmt.Errorf("get_block_data_from_states: Failed to get the runtimeID of block %s; blockStates = %#v", blockName, blockStates)
+		return "", nil, fmt.Errorf("get_new_block_states_from_older: Failed to get the runtimeID of block %s; blockStates = %#v", blockName, blockStates)
 	}
-	legacyBlock, found := chunk.RuntimeIDToLegacyBlock(standardRuntimeID)
+	blockName, states, found := blocks.RuntimeIDToState(runtimeID)
 	if !found {
-		return 0, fmt.Errorf("get_block_data_from_states: Failed to converse StandardRuntimeID to NEMCRuntimeID; standardRuntimeID = %d, blockName = %s, blockStates = %#v", standardRuntimeID, blockName, blockStates)
+		return "", nil, fmt.Errorf("get_new_block_states_from_older: Failed to converse runtimeID to block with states; runtimeID = %d, blockName = %s, blockStates = %#v", runtimeID, blockName, blockStates)
 	}
-	return legacyBlock.Val, nil
+	return blockName, states, nil
 }
 
 // 将 types.Module 解析为 GeneralBlock
@@ -171,4 +173,32 @@ func (i *ItemPackage) ParseItemFromNBT(singleItem ItemOrigin) error {
 	// 则物品组件数据将被丢弃
 	return nil
 	// return
+}
+
+// 计算两个 RGB 颜色 colorA 和 colorB 的加权欧式距离
+func CalculateColorDistance(colorA [3]uint8, colorB [3]uint8) float64 {
+	rmean := float64(colorA[0]+colorB[0]) / 2
+	deltaR := float64(colorA[0] - colorB[0])
+	deltaG := float64(colorA[1] - colorB[1])
+	deltaB := float64(colorA[2] - colorB[2])
+	return math.Sqrt((2+rmean/256)*deltaR*deltaR + 4*deltaG*deltaG + (2+(255-rmean)/256)*deltaB*deltaB)
+}
+
+// 从 mapping 中选出距离 color 最近的 RGB 颜色
+func SearchForBestColor(color [3]uint8, mapping [][3]uint8) (result [3]uint8) {
+	distance := math.Inf(1)
+	for _, value := range mapping {
+		if deltaC := CalculateColorDistance(color, value); deltaC < distance {
+			distance = deltaC
+			result = value
+		}
+	}
+	return
+}
+
+// 从 x 解码一个 RGBA 颜色
+func DecodeVarRGBA(x int32) (RGB [3]uint8, RGBA [4]uint8) {
+	R, G, B := uint8(x>>16), uint8(x>>8), uint8(x)
+	A := uint8(x >> 24)
+	return [3]uint8{R, G, B}, [4]uint8{R, G, B, A}
 }

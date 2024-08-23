@@ -62,8 +62,6 @@ const (
 	BDump_Warn_Reserved
 	CommandNotFound
 	ConnectionEstablished
-	Copyright_Notice_Bouldev
-	Copyright_Notice_Contrib
 	Crashed_No_Connection
 	Crashed_OS_Windows
 	Crashed_StackDump_And_Error
@@ -120,6 +118,7 @@ const (
 	Omega_Enabled
 	Omega_WaitingForOP
 	OpPrivilegeNotGrantedForOperation
+	Original_Important_Contributor
 	Parsing_UnterminatedEscape
 	Parsing_UnterminatedQuotedString
 	PositionGot
@@ -171,6 +170,7 @@ const (
 	Warning_ACME_Deprecated
 	Warning_Schem_Deprecated
 	Warning_UserHomeDir
+	Auth_MessageFromAuthServer
 )
 
 var LangDict map[string]map[uint16]string = map[string]map[uint16]string{

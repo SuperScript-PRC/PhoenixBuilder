@@ -168,12 +168,14 @@ func (o *Exporter) Activate() {
 		} else {
 			pterm.Error.Printfln("mcworld 文件生成失败 %v", err)
 		}
-		err = structure.EncodeSchem(o.chunks, startPos, endPos, structureName, overallCacheDir)
-		if err != nil {
-			pterm.Error.Printfln("schem 文件生成失败 %v", err)
-		} else {
-			pterm.Success.Printfln("schem 文件生成成功")
-		}
+		/*
+			err = structure.EncodeSchem(o.chunks, startPos, endPos, structureName, overallCacheDir)
+			if err != nil {
+				pterm.Error.Printfln("schem 文件生成失败 %v", err)
+			} else {
+				pterm.Success.Printfln("schem 文件生成成功")
+			}
+		*/
 		targetDir := path.Join(o.frame.GetStorageRoot(), "Omega导出", structureName)
 		if utils.IsDir(targetDir) {
 			tmpDir := targetDir

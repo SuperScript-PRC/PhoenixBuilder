@@ -41,16 +41,16 @@ func (*AgentAction) ID() uint32 {
 	return IDAgentAction
 }
 
-// Marshal ...
-func (pk *AgentAction) Marshal(w *protocol.Writer) {
-	w.String(&pk.Identifier)
-	w.Varint32(&pk.Action)
-	w.ByteSlice(&pk.Response)
-}
+func (pk *AgentAction) Marshal(io protocol.IO) {
+	io.String(&pk.Identifier)
 
-// Unmarshal ...
-func (pk *AgentAction) Unmarshal(r *protocol.Reader) {
-	r.String(&pk.Identifier)
-	r.Varint32(&pk.Action)
-	r.ByteSlice(&pk.Response)
+	// PhoenixBuilder specific changes.
+	// Changes Maker: Liliya233
+	// Committed by Happy2018new.
+	{
+		io.Int32(&pk.Action)
+		// io.Varint32(&pk.Action)
+	}
+
+	io.ByteSlice(&pk.Response)
 }

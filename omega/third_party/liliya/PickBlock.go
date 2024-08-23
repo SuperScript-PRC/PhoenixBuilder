@@ -40,7 +40,7 @@ func (o *PickBlock) Inject(frame defines.MainFrame) {
 }
 
 func (o *PickBlock) isOP(name string) bool {
-	return o.Frame.GetGameControl().GetPlayerKit(name).GetRelatedUQ().OPPermissionLevel > 1
+	return o.Frame.GetGameControl().GetPlayerKit(name).GetRelatedUQ().AbilityData.CommandPermissions > 1
 }
 
 func (o *PickBlock) blockPick(x, y, z int32) {

@@ -10,8 +10,8 @@ func PlanHopSwapPath(sx, sz, ex, ez, reachableChunks int) (hopPath []*ExportHopP
 	reachableBlocks := chunkSize * reachableChunks
 	alignSX := ((sx - chunkSize + 1) / chunkSize) * chunkSize
 	alignSZ := ((sz - chunkSize + 1) / chunkSize) * chunkSize
-	alignCEX := ((ex ) / chunkSize) * chunkSize
-	alignCEZ := ((ez ) / chunkSize) * chunkSize
+	alignCEX := ((ex) / chunkSize) * chunkSize
+	alignCEZ := ((ez) / chunkSize) * chunkSize
 	alignMEX := ((ex + chunkSize) / chunkSize) * chunkSize
 	alignMEZ := ((ez + chunkSize) / chunkSize) * chunkSize
 	hopXPoints := ((alignMEX - alignSX) + reachableBlocks - 1) / reachableBlocks
@@ -57,16 +57,24 @@ func PlanHopSwapPath(sx, sz, ex, ez, reachableChunks int) (hopPath []*ExportHopP
 		}
 	}
 	chunkPosMap := ExportedChunksMap{}
-	for xi := alignSX / chunkSize; xi < alignCEX/chunkSize; xi++ {
-		for zi := alignSZ / chunkSize; zi < alignCEZ/chunkSize; zi++ {
+	for xi := alignSX / chunkSize; xi <= alignCEX/chunkSize; xi++ {
+		for zi := alignSZ / chunkSize; zi <= alignCEZ/chunkSize; zi++ {
 			x, z := xi*chunkSize, zi*chunkSize
 			xHalfHops := ((x - alignSX) / preferredHalfHopXSpace)
 			hopXPoint := hopXOrigin + (xHalfHops/2)*2*preferredHalfHopXSpace
 			zHalfHops := ((z - alignSZ) / preferredHalfHopZSpace)
 			hopZPoint := hopZOrigin + (zHalfHops/2)*2*preferredHalfHopZSpace
+
+			if hopPointsMap[ChunkPosDefine{hopXPoint, hopZPoint}] == nil {
+				hopPointsMap[ChunkPosDefine{hopXPoint, hopZPoint}] = &ExportHopPos{
+					Pos:         ChunkPosDefine{hopXPoint, hopZPoint},
+					LinkedChunk: make([]*ExportedChunkPos, 0),
+				}
+			}
+
 			chunkPos := &ExportedChunkPos{
-				Pos: ChunkPosDefine{x, z},
-				MasterHop: hopPointsMap[ChunkPosDefine{hopXPoint, hopZPoint}],
+				Pos:        ChunkPosDefine{x, z},
+				MasterHop:  hopPointsMap[ChunkPosDefine{hopXPoint, hopZPoint}],
 				CachedMark: false,
 			}
 			chunkPosMap[ChunkPosDefine{x, z}] = chunkPos
@@ -78,31 +86,30 @@ func PlanHopSwapPath(sx, sz, ex, ez, reachableChunks int) (hopPath []*ExportHopP
 	return hopPoints, chunkPosMap
 }
 
-
-func CreateCacheHitFetcher(requiredChunks ExportedChunksMap,chunkPool map[ChunkPosDefine]ChunkDefine) (fetcher func(ChunkPosDefine,ChunkDefine)){
+func CreateCacheHitFetcher(requiredChunks ExportedChunksMap, chunkPool map[ChunkPosDefine]ChunkDefine) (fetcher func(ChunkPosDefine, ChunkDefine)) {
 	return func(ecp ChunkPosDefine, cd ChunkDefine) {
-		if c,hasK:=requiredChunks[ecp];hasK{
-			fmt.Println("Hit Memory ",ecp)
-			chunkPool[ecp]=cd
-			c.CachedMark=true
+		if c, hasK := requiredChunks[ecp]; hasK {
+			fmt.Println("Hit Memory ", ecp)
+			chunkPool[ecp] = cd
+			c.CachedMark = true
 		}
 	}
 }
 
-func SimplifyHopPos(hopPath []*ExportHopPos) (simplifiedHopPos []*ExportHopPos){
-	simplifiedHopPos=make([]*ExportHopPos, 0)
-	for _,hp:=range hopPath{
-		allCached:=true
-		for _,lc:=range hp.LinkedChunk{
-			if !lc.CachedMark{
-				allCached=false
+func SimplifyHopPos(hopPath []*ExportHopPos) (simplifiedHopPos []*ExportHopPos) {
+	simplifiedHopPos = make([]*ExportHopPos, 0)
+	for _, hp := range hopPath {
+		allCached := true
+		for _, lc := range hp.LinkedChunk {
+			if !lc.CachedMark {
+				allCached = false
 				break
 			}
 		}
-		if !allCached{
+		if !allCached {
 			simplifiedHopPos = append(simplifiedHopPos, hp)
-		}else{
-			fmt.Printf("Master Node %v all fetched\n",hp.Pos)
+		} else {
+			fmt.Printf("Master Node %v all fetched\n", hp.Pos)
 		}
 	}
 	return simplifiedHopPos

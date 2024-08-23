@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -30,6 +31,15 @@ func SliceAtoi(sa []string) ([]int, error) {
 		si = append(si, i)
 	}
 	return si, nil
+}
+
+// 将一个或多个 map[string]any 合并到一起
+func MergeMaps(mapping ...map[string]any) map[string]any {
+	result := make(map[string]any)
+	for _, value := range mapping {
+		maps.Copy(result, value)
+	}
+	return result
 }
 
 func GetHash(path string) (string, error) {
@@ -59,7 +69,7 @@ func CheckUpdate(currentVersion string) (bool, string) {
 	current_major_version, _ := strconv.Atoi(current_version_m[0][2])
 	current_minor_version, _ := strconv.Atoi(current_version_m[0][3])
 	current_patch_version, _ := strconv.Atoi(current_version_m[0][4])
-	resp, err := http.Get("https://api.github.com/repos/LNSSPsd/PhoenixBuilder/releases/latest")
+	resp, err := http.Get("https://api.github.com/repos/bouldev/PhoenixBuilder/releases/latest")
 	if err != nil {
 		fmt.Printf("Failed to check update!\nPlease check your network status.\n")
 		return false, ""

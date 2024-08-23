@@ -153,10 +153,10 @@ func (c *Client) RecvDecodedGamePacket() (pk mc_packet.Packet, err error) {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%v", r)
 			//bytes.NewReader().Read()
-			//pk.Unmarshal(protocol.NewReader(&NoEOFByteReader{s: mcPkt[1:]}, 0))
+			//pk.Marshal(protocol.NewReader(&NoEOFByteReader{s: mcPkt[1:]}, 0, false))
 		}
 	}()
-	pk.Unmarshal(protocol.NewReader(&NoEOFByteReader{s: mcPkt[1:]}, 0))
+	pk.Marshal(protocol.NewReader(&NoEOFByteReader{s: mcPkt[1:]}, 0, false))
 	return pk, nil
 }
 
@@ -280,7 +280,7 @@ func NewClient(address string) *Client {
 			uqHolderWaitChan: make(chan []byte),
 		}
 		if TypePool == nil {
-			TypePool = mc_packet.NewPool()
+			TypePool = mc_packet.ListAllPackets()
 		}
 		go c.routine()
 		return c

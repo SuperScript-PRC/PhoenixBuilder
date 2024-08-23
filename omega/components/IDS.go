@@ -1,5 +1,10 @@
 package components
 
+/*
+Deprecated this because we don't have item runtime id table.
+
+
+
 import (
 	"encoding/json"
 	"fmt"
@@ -276,3 +281,4 @@ func (o *IntrusionDetectSystem) onSeePlayer(pk *packet.AddPlayer) {
 		}
 	})
 }
+*/

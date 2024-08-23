@@ -23,18 +23,20 @@ type Player struct {
 	UUID           uuid.UUID
 	EntityUniqueID int64
 	//GameModeAfterChange     int32
-	LoginTime               time.Time
-	LoginTick               uint64
-	Username                string
-	PlatformChatID          string
-	BuildPlatform           int32
-	SkinID                  string
-	PropertiesFlag          uint32
-	CommandPermissionLevel  uint32
-	ActionPermissions       uint32
-	OPPermissionLevel       uint32
-	CustomStoredPermissions uint32
-	DeviceID                string
+	LoginTime        time.Time
+	LoginTick        uint64
+	Username         string
+	PlatformChatID   string
+	BuildPlatform    int32
+	SkinID           string
+	AbilityData      protocol.AbilityData
+	EntityProperties protocol.EntityProperties
+	// PropertiesFlag          uint32
+	// CommandPermissionLevel  uint32
+	// ActionPermissions       uint32
+	// OPPermissionLevel       uint32
+	// CustomStoredPermissions uint32
+	DeviceID string
 	// only when the player can be seen by bot
 	EntityRuntimeID uint64
 	Entity          *Entity
@@ -351,16 +353,20 @@ func (uq *UQHolder) Update(pk packet.Packet) {
 				}
 			}
 		}
-	case *packet.AdventureSettings:
-		player := uq.PlayersByEntityID[p.PlayerUniqueID]
-		if player == nil {
-			player = &Player{}
-		}
-		player.PropertiesFlag = p.Flags
-		player.CommandPermissionLevel = p.CommandPermissionLevel
-		player.ActionPermissions = p.ActionPermissions
-		player.OPPermissionLevel = p.PermissionLevel
-		player.CustomStoredPermissions = p.CustomStoredPermissions
+	/*
+		This packet has been deprecated. (Added by Happy2018new)
+
+		case *packet.AdventureSettings:
+			player := uq.PlayersByEntityID[p.PlayerUniqueID]
+			if player == nil {
+				player = &Player{}
+			}
+			player.PropertiesFlag = p.Flags
+			player.CommandPermissionLevel = p.CommandPermissionLevel
+			player.ActionPermissions = p.ActionPermissions
+			player.OPPermissionLevel = p.PermissionLevel
+			player.CustomStoredPermissions = p.CustomStoredPermissions
+	*/
 	case *packet.SetTime:
 		uq.Time = p.Time
 		uq.DayTime = p.Time % 24000
@@ -428,7 +434,7 @@ func (uq *UQHolder) Update(pk packet.Packet) {
 		uq.UpdateTick(p.Tick)
 
 	case *packet.AddPlayer:
-		player := uq.PlayersByEntityID[p.EntityUniqueID]
+		player := uq.PlayersByEntityID[p.AbilityData.EntityUniqueID]
 		entity := uq.GetEntityByRuntimeID(p.EntityRuntimeID)
 		entity.IsPlayer = true
 		entity.LastUpdateTick = uq.CurrentTick
@@ -439,11 +445,8 @@ func (uq *UQHolder) Update(pk packet.Packet) {
 		entity.LastPosInfo.Pitch = p.Pitch
 		entity.LastPosInfo.Yaw = p.Yaw
 		entity.LastPosInfo.HeadYaw = p.HeadYaw
-		player.PropertiesFlag = p.Flags
-		player.CommandPermissionLevel = p.CommandPermissionLevel
-		player.ActionPermissions = p.ActionPermissions
-		player.OPPermissionLevel = p.PermissionLevel
-		player.CustomStoredPermissions = p.CustomStoredPermissions
+		player.AbilityData = p.AbilityData
+		player.EntityProperties = p.EntityProperties
 		player.DeviceID = p.DeviceID
 	case *packet.MobEquipment:
 		entity := uq.GetEntityByRuntimeID(p.EntityRuntimeID)

@@ -1,5 +1,10 @@
 package woodaxe
 
+/*
+Deprecated this because we don't have block runtime id to Java block table.
+
+
+
 import (
 	"fmt"
 	"phoenixbuilder/mirror/define"
@@ -146,3 +151,4 @@ func (o *ActionManager) Trim() {
 	}
 	o.ActionStack = o.ActionStack[:o.ActionStackPointer+1]
 }
+*/

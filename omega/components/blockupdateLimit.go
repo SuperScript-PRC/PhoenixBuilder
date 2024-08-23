@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"phoenixbuilder/minecraft/protocol"
 	"phoenixbuilder/minecraft/protocol/packet"
-	"phoenixbuilder/mirror/chunk"
+	"phoenixbuilder/mirror/blocks"
 	"phoenixbuilder/omega/defines"
 	"phoenixbuilder/omega/utils"
 	"strings"
@@ -69,21 +69,20 @@ func (o *RedStoneUpdateLimit) recordUpdate(pos protocol.BlockPos) {
 
 func (o *RedStoneUpdateLimit) onBlockUpdate(pk *packet.UpdateBlock) {
 	nemcRid := pk.NewBlockRuntimeID
-	rid := chunk.NEMCRuntimeIDToStandardRuntimeID(nemcRid)
-	legacyBlock, found := chunk.RuntimeIDToLegacyBlock(rid)
+	blockName, _, found := blocks.RuntimeIDToLegacyBlock(nemcRid)
 	if !found {
 		return
 	}
 	// fmt.Println(nemcRid, rid, legacyBlock)
 	isRedstone := false
-	if _isRedstone, hasK := o.redstoneRidCache[rid]; hasK {
+	if _isRedstone, hasK := o.redstoneRidCache[nemcRid]; hasK {
 		isRedstone = _isRedstone
 	} else {
 		for _, bk := range o.BlockNames {
-			if strings.Contains(legacyBlock.Name, bk) {
+			if strings.Contains(blockName, bk) {
 				// fmt.Println(legacyBlock.Name, " is redstone")
 				isRedstone = true
-				o.redstoneRidCache[rid] = isRedstone
+				o.redstoneRidCache[nemcRid] = isRedstone
 				break
 			}
 		}

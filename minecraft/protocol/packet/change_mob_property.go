@@ -6,8 +6,19 @@ import (
 
 // ChangeMobProperty is a packet sent from the server to the client to change one of the properties of a mob client-side.
 type ChangeMobProperty struct {
-	// EntityUniqueID is the unique ID of the entity whose property is being changed.
-	EntityUniqueID uint64
+	/*
+		PhoenixBuilder specific changes.
+		Changes Maker: Liliya233
+		Committed by Happy2018new.
+
+		EntityUniqueID is the unique ID of the entity whose property is being changed.
+
+		For netease, the data type of this field is int64,
+		but on standard minecraft, this is uint64.
+	*/
+	EntityUniqueID int64
+	// EntityUniqueID uint64
+
 	// Property is the name of the property being updated.
 	Property string
 	// BoolValue is set if the property value is a bool type. If the type is not a bool, this field is ignored.
@@ -25,22 +36,17 @@ func (*ChangeMobProperty) ID() uint32 {
 	return IDChangeMobProperty
 }
 
-// Marshal ...
-func (pk *ChangeMobProperty) Marshal(w *protocol.Writer) {
-	w.Uint64(&pk.EntityUniqueID)
-	w.String(&pk.Property)
-	w.Bool(&pk.BoolValue)
-	w.String(&pk.StringValue)
-	w.Varint32(&pk.IntValue)
-	w.Float32(&pk.FloatValue)
-}
-
-// Unmarshal ...
-func (pk *ChangeMobProperty) Unmarshal(r *protocol.Reader) {
-	r.Uint64(&pk.EntityUniqueID)
-	r.String(&pk.Property)
-	r.Bool(&pk.BoolValue)
-	r.String(&pk.StringValue)
-	r.Varint32(&pk.IntValue)
-	r.Float32(&pk.FloatValue)
+func (pk *ChangeMobProperty) Marshal(io protocol.IO) {
+	// PhoenixBuilder specific changes.
+	// Changes Maker: Liliya233
+	// Committed by Happy2018new.
+	{
+		io.Varint64(&pk.EntityUniqueID)
+		// io.Uint64(&pk.EntityUniqueID)
+	}
+	io.String(&pk.Property)
+	io.Bool(&pk.BoolValue)
+	io.String(&pk.StringValue)
+	io.Varint32(&pk.IntValue)
+	io.Float32(&pk.FloatValue)
 }

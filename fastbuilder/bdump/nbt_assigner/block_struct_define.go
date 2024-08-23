@@ -75,6 +75,7 @@ type CommandBlockData struct {
 	TrackOutput        bool   // TrackOutput(TAG_Byte) = 1
 	ConditionalMode    bool   // conditionalMode(TAG_Byte) = 0
 	Auto               bool   // auto(TAG_Byte) = 1
+	Version            int32  // Version(TAG_Int) = 35
 }
 
 // CommandBlock 结构体用于描述一个完整的命令方块数据
@@ -96,9 +97,30 @@ type ContainerConstantData struct {
 	StorageItemValue string
 	// 描述此容器是否可以打开
 	CouldOpen bool
-	// 描述此容器的容器 ID 。
-	// 为 255 时代表未被支持
-	ContainerID uint8
+	/*
+		描述此容器的通用容器 ID ，
+		因为大多数容器只存在唯一的容器 ID。
+
+		当然，如果该容器不同槽位对应的容器 ID 不同，
+		则该字段为 255 且下方 ContainerIDMapping 字段为非空。
+
+		另，如果该字段为 255 且下方 ContainerIDMapping 为空，
+		则代表该容器未被支持
+	*/
+	UniversalContainerID uint8
+	/*
+		描述此容器对应槽位的容器 ID 。
+
+		目前应只被熔炉、烟熏炉、
+		高炉 和 酿造台 所使用。
+
+		键代表槽位编号，
+		值代表该槽位对应的容器 ID 。
+
+		另，如果该字段为空且上方 UniversalContainerID 为 255，
+		则代表该容器未被支持
+	*/
+	ContainerIDMapping map[uint8]uint8
 }
 
 // 描述一个容器
@@ -115,8 +137,36 @@ var ErrNotASupportedContainer error = fmt.Errorf("getContainerContents: Not a su
 
 // ------------------------- sign -------------------------
 
+// 描述单个告示牌(旧版)中已解码的部分
+type LegacySignData SignText
+
+// 描述单个告示牌中已解码的部分
+type SignData struct {
+	FrontText SignText // FrontText(TAG_Compound)
+	BackText  SignText // FrontText(TAG_Compound)
+	IsWaxed   bool     // IsWaxed(TAG_Byte) = 0
+}
+
+// 描述单个告示牌 FrontText 或 BackText 字段中已解码的部分
+type SignText struct {
+	IgnoreLighting bool  // IgnoreLighting(TAG_Byte) = 0
+	SignTextColor  int32 // SignTextColor(TAG_Int) = -16777216
+}
+
 // 描述一个告示牌
 type Sign struct {
 	// 该方块实体的详细数据
 	BlockEntity *BlockEntity
+	// 存放已解码的告示牌(旧版)数据。
+	// 如果当前告示牌不是旧版，
+	// 则该字段不存在
+	LegacySignData *LegacySignData
+	// 存放已解码的告示牌数据。
+	// 如果当前告示牌是旧版，
+	// 则该字段不存在
+	SignData *SignData
+	// 指定当前告示牌是否是悬挂式
+	IsHangingSignBlock bool
+	// 指定当前告示牌是否是非旧版
+	IsNotLegacySignBlock bool
 }
